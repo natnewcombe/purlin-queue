@@ -397,6 +397,7 @@
         <input type="text" id="searchBox" placeholder="Search mark…" oninput="renderTable()">
         <span class="spacer"></span>
         <button class="btn-ghost btn-sm no-print office-only" onclick="clearCompleted()">Clear completed</button>
+        <button class="btn-danger btn-sm no-print office-only" onclick="clearQueue()">Clear queue</button>
       </div>
       <div class="chip-row" id="typeChips"></div>
       <div class="chip-row" id="profileChips"></div>
@@ -413,7 +414,9 @@
             <th>Gauge</th>
             <th>Qty</th>
             <th>Length</th>
-            <th class="no-print" style="width:70px;">Done</th>
+            <th class="no-print" style="width:70px;">
+              <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllDone(this.checked)" title="Mark all visible items as done"> Done
+            </th>
             <th class="no-print office-only" style="width:90px;"></th>
           </tr>
         </thead>
@@ -619,6 +622,7 @@
         else if (key === 'qty') colIdx.qty = i;
         else if (key === 'length') colIdx.length = i;
         else if (key === 'finish') colIdx.finish = i;
+        else if (key === 'total weight') colIdx.weight = i;
       }
     });
 
@@ -634,6 +638,7 @@
       // has numeric Qty and Length.
       if (typeof qtyRaw !== 'number' || typeof lenRaw !== 'number') continue;
       const size = colIdx.size !== undefined ? row[colIdx.size] : '';
+      const weightRaw = colIdx.weight !== undefined ? row[colIdx.weight] : null;
       items.push({
         id: uid(),
         group: groupTag,
@@ -643,6 +648,7 @@
         gauge: parseGauge(size),
         qty: qtyRaw,
         length: lenRaw,
+        weight: typeof weightRaw === 'number' ? weightRaw : 0,
         finish: colIdx.finish !== undefined ? String(row[colIdx.finish]||'').trim() : '',
         status: 'pending'
       });
@@ -782,6 +788,9 @@
     const cass = queue.filter(i => i.group === 'CASSETTE');
     const totalLenM = queue.reduce((s,i)=> s + (i.qty * i.length)/1000, 0);
     const pendingQty = pending.reduce((s,i)=> s + i.qty, 0);
+    const totalWeightKg = queue.reduce((s,i)=> s + (i.weight||0), 0);
+    const longestLength = queue.reduce((m,i)=> Math.max(m, i.length||0), 0);
+    const distinctSizes = new Set(queue.map(i=>i.size).filter(Boolean)).size;
     return {
       total: queue.length,
       pending: pending.length,
@@ -789,7 +798,10 @@
       site: site.length,
       cass: cass.length,
       totalLenM,
-      pendingQty
+      pendingQty,
+      totalWeightKg,
+      longestLength,
+      distinctSizes
     };
   }
 
@@ -802,7 +814,10 @@
       {n:s.done, l:'Completed'},
       {n:s.site, l:'Site items'},
       {n:s.cass, l:'Cassette/Factory items'},
-      {n:fmtNum(s.totalLenM,1)+' m', l:'Total length'}
+      {n:fmtNum(s.totalLenM,1)+' m', l:'Total length'},
+      {n:fmtNum(s.totalWeightKg,0)+' kg', l:'Total weight'},
+      {n:fmtNum(s.longestLength,0)+' mm', l:'Longest length'},
+      {n:s.distinctSizes, l:'Different sizes'}
     ].map(x => `<div class="stat"><div class="n">${x.n}</div><div class="l">${x.l}</div></div>`).join('');
   }
 
@@ -822,6 +837,9 @@
     const rows = filteredQueue();
     const body = document.getElementById('queueBody');
     document.getElementById('emptyState').style.display = rows.length ? 'none' : '';
+    const selectAll = document.getElementById('selectAllCheckbox');
+    selectAll.checked = rows.length > 0 && rows.every(r => r.status === 'done');
+    selectAll.disabled = rows.length === 0;
     body.innerHTML = rows.map((it, idx) => `
       <tr draggable="true" data-id="${it.id}" class="${it.status==='done' ? 'done':''}">
         <td class="no-print office-only"><span class="drag-handle">⠿</span></td>
@@ -921,6 +939,12 @@
     renderAll();
   };
 
+  window.toggleAllDone = function(checked){
+    const rows = filteredQueue();
+    rows.forEach(it => { it.status = checked ? 'done' : 'pending'; });
+    renderAll();
+  };
+
   window.removeItem = function(id){
     confirmAction('Remove item', 'Remove this item from the queue?', () => {
       queue = queue.filter(i => i.id !== id);
@@ -956,6 +980,15 @@
     confirmAction('Clear completed', `Remove ${doneCount} completed item(s) from the queue?`, () => {
       queue = queue.filter(i => i.status !== 'done');
       renderAll();
+    });
+  };
+
+  window.clearQueue = function(){
+    if (!queue.length){ notify('Queue is already empty.'); return; }
+    confirmAction('Clear queue', `Remove all ${queue.length} item(s) from the queue? This cannot be undone.`, () => {
+      queue = [];
+      renderAll();
+      notify('Queue cleared.');
     });
   };
 
