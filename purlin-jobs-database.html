@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purlin Queue — Job Database</title>
+<style>
+  :root {
+    --brand: #ec8516;
+    --brand-dark: #c46d0e;
+    --brand-light: #fdf1e2;
+    --bg: #f4f5f7;
+    --bg2: #ffffff;
+    --tx: #23262b;
+    --tx2: #5b6270;
+    --tx3: #9aa1ad;
+    --bdr: #e2e4e9;
+    --bdr2: #d3d7de;
+    --r: 6px;
+    --rl: 10px;
+    --shadow: 0 1px 3px rgba(20,20,30,0.06), 0 1px 2px rgba(20,20,30,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171b;
+      --bg2: #1e2025;
+      --tx: #eceef1;
+      --tx2: #aab0bb;
+      --tx3: #6b7280;
+      --bdr: #2c2f36;
+      --bdr2: #383c45;
+      --brand-light: #2c220f;
+      --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--tx);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--brand); }
+
+  /* ---------- Nav ---------- */
+  .topnav {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 20px;
+    background: var(--bg2);
+    border-bottom: 0.5px solid var(--bdr);
+    box-shadow: var(--shadow);
+  }
+  .logo-mark {
+    width: 38px; height: 38px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--brand); color: #fff; border-radius: 8px;
+    font-weight: 800; font-size: 14px; letter-spacing: -0.3px;
+  }
+  .topnav h1 { font-size: 16px; font-weight: 700; margin: 0; letter-spacing: -0.2px; }
+  .topnav .sub { font-size: 12px; color: var(--tx2); margin-top: 1px; }
+  .nav-title-block { display: flex; flex-direction: column; margin-right: auto; }
+  .nav-btns { display: flex; gap: 8px; align-items: center; }
+
+  /* ---------- Buttons ---------- */
+  button {
+    font-family: inherit; cursor: pointer; border: none;
+    font-size: 13px; font-weight: 600; border-radius: var(--r);
+    padding: 8px 14px; transition: filter .12s ease, background .12s ease;
+  }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-primary:active { filter: brightness(0.94); }
+  .btn-ghost { background: transparent; color: var(--tx2); border: 0.5px solid var(--bdr2); }
+  .btn-ghost:hover { background: var(--bg); color: var(--tx); }
+  .btn-danger { background: #fff0ee; color: #c0392b; }
+  .btn-danger:hover { background: #ffe1dd; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .icon-btn {
+    width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; color: var(--tx2); border-radius: var(--r); padding: 0;
+  }
+  .icon-btn:hover { background: var(--bg); color: var(--tx); }
+  .icon-btn.active { background: var(--brand); color: #fff; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* ---------- Layout ---------- */
+  main { max-width: 1180px; margin: 0 auto; padding: 18px 20px 60px; }
+  .card {
+    background: var(--bg2);
+    border: 0.5px solid var(--bdr);
+    border-radius: var(--rl);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .card-body { padding: 16px 18px; }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 18px; }
+  .toolbar input[type=text], .toolbar select {
+    font-family: inherit; font-size: 13px; padding: 7px 11px; border-radius: 999px;
+    border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--tx);
+  }
+  .toolbar input[type=text] { min-width: 200px; flex: 1; }
+  .toolbar .spacer { flex: 1; }
+  .chip {
+    font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+    border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--tx2); cursor: pointer;
+  }
+  .chip.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 18px 14px; }
+  .view-toggle { display: flex; background: var(--bg); border: 0.5px solid var(--bdr2); border-radius: 999px; padding: 2px; gap: 2px; }
+  .view-toggle button { padding: 6px 10px; border-radius: 999px; font-size: 12px; background: transparent; color: var(--tx2); }
+  .view-toggle button.active { background: var(--brand); color: #fff; }
+
+  /* ---------- Group headers ---------- */
+  .group-head {
+    display: flex; align-items: center; gap: 8px; padding: 10px 4px;
+    cursor: pointer; user-select: none; margin-top: 6px;
+  }
+  .group-head h3 { font-size: 13px; margin: 0; text-transform: uppercase; letter-spacing: 0.3px; color: var(--tx2); flex: 1; }
+  .group-head .chev { color: var(--tx3); font-size: 11px; transition: transform .15s ease; }
+  .group-head.collapsed .chev { transform: rotate(-90deg); }
+  .group-head .g-count { font-size: 11px; color: var(--tx3); font-weight: 400; }
+  .group-body.collapsed { display: none; }
+
+  /* ---------- Job cards ---------- */
+  .job-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .job-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .job-card {
+    background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: var(--r);
+    padding: 14px; cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease;
+    position: relative;
+  }
+  .job-card:hover { border-color: var(--brand); box-shadow: var(--shadow); }
+  .job-list .job-card { display: flex; align-items: center; gap: 14px; }
+
+  .jc-title { font-size: 14px; font-weight: 700; }
+  .jc-sub { font-size: 12px; color: var(--tx3); margin-top: 2px; }
+  .job-list .jc-title-wrap { flex: 1; min-width: 0; }
+  .jc-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .job-list .jc-badges { margin-top: 0; flex-wrap: nowrap; }
+  .tag { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+  .tag-site { background: #e3f0ff; color: #1a5fb4; }
+  .tag-cassette { background: #f1e8ff; color: #7b3ff2; }
+  .tag-label { background: var(--brand-light); color: var(--brand-dark); }
+  @media (prefers-color-scheme: dark) {
+    .tag-site { background: #12283f; color: #7cb3ff; }
+    .tag-cassette { background: #2a1f42; color: #c3a3ff; }
+  }
+  .jc-progress { margin-top: 10px; }
+  .job-list .jc-progress { margin-top: 0; width: 140px; flex-shrink: 0; }
+  .progress-bar-track { background: var(--bg); border-radius: 999px; height: 6px; overflow: hidden; border: 0.5px solid var(--bdr); }
+  .progress-bar-fill { background: var(--brand); height: 100%; border-radius: 999px; }
+  .jc-pct { font-size: 11px; color: var(--tx3); margin-top: 4px; }
+  .jc-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+  .job-card .jc-actions { position: absolute; top: 10px; right: 10px; }
+  .job-list .jc-actions { position: static; }
+
+  .empty-state { text-align: center; padding: 50px 20px; color: var(--tx3); }
+  .empty-state .big { font-size: 32px; margin-bottom: 10px; }
+  .help-text { font-size: 12px; color: var(--tx2); line-height: 1.5; margin: 4px 0 12px; }
+
+  /* ---------- Toast ---------- */
+  .sm-notify {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--tx); color: var(--bg2); padding: 10px 18px; border-radius: 999px;
+    font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    z-index: 200; max-width: 90vw; text-align: center;
+  }
+  .sm-notify.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .sm-notify.err { background: #c0392b; }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(10,10,15,0.45);
+    display: none; align-items: center; justify-content: center; z-index: 150; padding: 20px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--bg2); border-radius: var(--rl); width: 100%; max-width: 440px;
+    max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .modal-head { display: flex; align-items: center; padding: 16px 18px; border-bottom: 0.5px solid var(--bdr); }
+  .modal-head h3 { font-size: 15px; margin: 0; flex: 1; }
+  .modal-body { padding: 16px 18px; overflow-y: auto; }
+  .modal-foot { padding: 12px 18px; border-top: 0.5px solid var(--bdr); display: flex; justify-content: flex-end; gap: 8px; }
+  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .field label { font-size: 11px; color: var(--tx3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .field input { font-family: inherit; font-size: 13px; padding: 8px 10px; border: 0.5px solid var(--bdr2); border-radius: var(--r); background: var(--bg2); color: var(--tx); }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="logo-mark">AT</div>
+  <div class="nav-title-block">
+    <h1>Job Database</h1>
+    <div class="sub" id="subline">Operator · Purlin Rollformer Queue</div>
+  </div>
+  <div class="nav-btns">
+    <button class="icon-btn" id="btnSettings" title="Backend settings">⚙</button>
+    <button class="btn-ghost btn-sm" id="btnRefresh" onclick="refreshJobs()">Refresh</button>
+  </div>
+</nav>
+
+<main>
+  <div class="card">
+    <div class="toolbar">
+      <input type="text" id="searchBox" placeholder="Search job, zone, filename…" oninput="renderJobs()">
+      <select id="jobFilter" onchange="renderJobs()"><option value="ALL">All jobs</option></select>
+      <span class="spacer"></span>
+      <select id="sortSel" onchange="renderJobs()">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="nameAsc">Job A→Z</option>
+        <option value="nameDesc">Job Z→A</option>
+        <option value="mostItems">Most items</option>
+      </select>
+      <div class="view-toggle">
+        <button id="btnViewGrid" onclick="setView('grid')">Grid</button>
+        <button id="btnViewList" onclick="setView('list')">List</button>
+      </div>
+    </div>
+    <div class="chip-row">
+      <button class="chip active" data-range="ALL" onclick="setDateRange('ALL')">All time</button>
+      <button class="chip" data-range="1" onclick="setDateRange('1')">Today</button>
+      <button class="chip" data-range="7" onclick="setDateRange('7')">7 days</button>
+      <button class="chip" data-range="30" onclick="setDateRange('30')">30 days</button>
+      <button class="chip" data-range="90" onclick="setDateRange('90')">90 days</button>
+      <span class="spacer"></span>
+      <button class="chip" id="btnGroupToggle" onclick="toggleGrouped()">Group by job</button>
+    </div>
+  </div>
+
+  <div id="jobsContainer"></div>
+  <div class="empty-state" id="emptyState" style="display:none;">
+    <div class="big">📭</div>
+    <div id="emptyMsg">No saved jobs found.</div>
+  </div>
+</main>
+
+<!-- Confirm modal -->
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-head"><h3 id="confirmTitle">Confirm</h3></div>
+    <div class="modal-body"><p id="confirmBody" style="font-size:13px;color:var(--tx2);"></p></div>
+    <div class="modal-foot">
+      <button class="btn-ghost btn-sm" onclick="closeModal('confirmModal')">Cancel</button>
+      <button class="btn-danger btn-sm" id="confirmActionBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Backend Settings</h3>
+      <button class="icon-btn" onclick="closeModal('settingsModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="help-text">
+        Same Apps Script Web App URL used by the main Purlin Queue app. Set once per computer.
+      </p>
+      <div class="field">
+        <label>Apps Script Web App URL</label>
+        <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
+      </div>
+      <p class="help-text">
+        Where the main queue app (purlin-queue.html) is hosted or opened from, so sessions can be opened directly into it.
+      </p>
+      <div class="field">
+        <label>Main App URL</label>
+        <input type="text" id="mainAppUrlInput" placeholder="https://…/purlin-queue.html">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-primary btn-sm" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="sm-notify" id="notify"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  const LS_URL_KEY = 'plq_script_url';        // shared with main Purlin Queue app
+  const LS_MAIN_APP_KEY = 'plq_main_app_url';
+  const LS_VIEW_KEY = 'plq_db_view';
+  const LS_GROUP_KEY = 'plq_db_grouped';
+  const LS_COLLAPSED_KEY = 'plq_db_collapsed_groups';
+
+  let APPS_SCRIPT_URL = localStorage.getItem(LS_URL_KEY) || '';
+  let MAIN_APP_URL = localStorage.getItem(LS_MAIN_APP_KEY) || '';
+  let view = localStorage.getItem(LS_VIEW_KEY) || 'grid';
+  let grouped = localStorage.getItem(LS_GROUP_KEY) === '1';
+  let collapsedGroups = new Set(JSON.parse(localStorage.getItem(LS_COLLAPSED_KEY) || '[]'));
+
+  let files = [];          // raw list from backend
+  let dateRange = 'ALL';   // 'ALL' | '1' | '7' | '30' | '90'
+
+  /* ================= Utilities ================= */
+  function notify(msg, isErr){
+    const n = document.getElementById('notify');
+    n.textContent = msg;
+    n.className = 'sm-notify show' + (isErr ? ' err' : '');
+    clearTimeout(n._t);
+    n._t = setTimeout(()=> n.classList.remove('show'), 3200);
+  }
+  function openModal(id){ document.getElementById(id).classList.add('show'); }
+  function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function esc1(s){ return escapeHtml(s).replace(/'/g,"\\'"); }
+
+  function confirmAction(title, body, onYes){
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmBody').textContent = body;
+    const btn = document.getElementById('confirmActionBtn');
+    const clone = btn.cloneNode(true);
+    btn.parentNode.replaceChild(clone, btn);
+    clone.addEventListener('click', ()=>{ closeModal('confirmModal'); onYes(); });
+    openModal('confirmModal');
+  }
+
+  function parseSessionFilename(name){
+    const m = name.match(/^(.+?)--ZONE\s*(.+?)--PURLIN QUEUE(?:\s*-\s*(.+))?\.json$/i);
+    if (!m) return {job:'', zone:'', label:''};
+    return {job:m[1], zone:m[2], label:m[3]||''};
+  }
+
+  function normalize(f){
+    const parsed = parseSessionFilename(f.name);
+    return {
+      id: f.id,
+      name: f.name,
+      modifiedTime: f.modifiedTime,
+      job: (f.job || parsed.job || '').trim(),
+      zone: (f.zone || parsed.zone || '').trim(),
+      label: parsed.label || '',
+      savedAt: f.savedAt || f.modifiedTime,
+      siteCount: f.siteCount || 0,
+      cassCount: f.cassCount || 0,
+      totalCount: f.totalCount != null ? f.totalCount : (f.siteCount||0)+(f.cassCount||0),
+      doneCount: f.doneCount || 0,
+      metaError: !!f.metaError
+    };
+  }
+
+  async function scriptCall(params){
+    const url = APPS_SCRIPT_URL + '?' + new URLSearchParams(params);
+    const resp = await fetch(url, {redirect:'follow'});
+    const text = await resp.text();
+    return JSON.parse(text);
+  }
+
+  /* ================= Load ================= */
+  window.refreshJobs = async function(){
+    const container = document.getElementById('jobsContainer');
+    const empty = document.getElementById('emptyState');
+    empty.style.display = 'none';
+    if (!APPS_SCRIPT_URL){
+      container.innerHTML = '';
+      empty.style.display = '';
+      document.getElementById('emptyMsg').textContent = 'Set the Apps Script URL first (⚙ icon).';
+      return;
+    }
+    container.innerHTML = '<p class="help-text" style="padding:14px 18px;">Loading…</p>';
+    try {
+      const result = await scriptCall({action:'list', meta:'1'});
+      if (!result.ok){ notify('Error: ' + result.error, true); container.innerHTML=''; return; }
+      files = (result.files || []).map(normalize);
+      populateJobFilter();
+      renderJobs();
+    } catch(err){
+      container.innerHTML = '';
+      notify('Could not reach the backend: ' + err.message, true);
+    }
+  };
+
+  function populateJobFilter(){
+    const sel = document.getElementById('jobFilter');
+    const current = sel.value;
+    const jobs = [...new Set(files.map(f => f.job).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="ALL">All jobs</option>' +
+      jobs.map(j => `<option value="${escapeHtml(j)}">${escapeHtml(j)}</option>`).join('');
+    if (jobs.includes(current)) sel.value = current;
+  }
+
+  /* ================= Filtering / sorting ================= */
+  function withinRange(f){
+    if (dateRange === 'ALL') return true;
+    const days = parseInt(dateRange, 10);
+    const cutoff = Date.now() - days*24*60*60*1000;
+    return new Date(f.modifiedTime).getTime() >= cutoff;
+  }
+
+  function filteredSorted(){
+    const search = document.getElementById('searchBox').value.trim().toLowerCase();
+    const jobSel = document.getElementById('jobFilter').value;
+    const sort = document.getElementById('sortSel').value;
+
+    let rows = files.filter(f => {
+      if (jobSel !== 'ALL' && f.job !== jobSel) return false;
+      if (!withinRange(f)) return false;
+      if (search){
+        const hay = `${f.job} ${f.zone} ${f.label} ${f.name}`.toLowerCase();
+        if (!hay.includes(search)) return false;
+      }
+      return true;
+    });
+
+    rows.sort((a,b) => {
+      switch(sort){
+        case 'oldest': return new Date(a.modifiedTime) - new Date(b.modifiedTime);
+        case 'nameAsc': return (a.job||'').localeCompare(b.job||'') || a.name.localeCompare(b.name);
+        case 'nameDesc': return (b.job||'').localeCompare(a.job||'') || b.name.localeCompare(a.name);
+        case 'mostItems': return b.totalCount - a.totalCount;
+        default: return new Date(b.modifiedTime) - new Date(a.modifiedTime);
+      }
+    });
+    return rows;
+  }
+
+  /* ================= Rendering ================= */
+  function jobCardHtml(f){
+    const pct = f.totalCount ? Math.round((f.doneCount/f.totalCount)*100) : 0;
+    const when = new Date(f.modifiedTime).toLocaleString('en-AU');
+    const title = f.job ? `Job ${escapeHtml(f.job)}${f.zone ? ' · Zone '+escapeHtml(f.zone) : ''}` : escapeHtml(f.name);
+    const badges = `
+      ${f.siteCount ? `<span class="tag tag-site">Site ${f.siteCount}</span>` : ''}
+      ${f.cassCount ? `<span class="tag tag-cassette">Cassette ${f.cassCount}</span>` : ''}
+      ${f.label ? `<span class="tag tag-label">${escapeHtml(f.label)}</span>` : ''}
+    `;
+    return `
+      <div class="job-card" onclick="openJob('${f.id}','${esc1(f.name)}')">
+        <div class="jc-title-wrap">
+          <div class="jc-title">${title}</div>
+          <div class="jc-sub">Updated ${when}${f.metaError ? ' · could not read details' : ''}</div>
+          <div class="jc-badges">${badges}</div>
+        </div>
+        <div class="jc-progress">
+          <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${pct}%;"></div></div>
+          <div class="jc-pct">${f.doneCount}/${f.totalCount} pcs done · ${pct}%</div>
+        </div>
+        <div class="jc-actions">
+          <button class="icon-btn" title="Delete" onclick="event.stopPropagation();deleteJob('${f.id}','${esc1(f.name)}')">🗑</button>
+        </div>
+      </div>`;
+  }
+
+  function renderJobs(){
+    const rows = filteredSorted();
+    const container = document.getElementById('jobsContainer');
+    const empty = document.getElementById('emptyState');
+
+    if (!files.length){
+      container.innerHTML = '';
+      empty.style.display = '';
+      document.getElementById('emptyMsg').textContent = 'No saved jobs found.';
+      return;
+    }
+    if (!rows.length){
+      container.innerHTML = '';
+      empty.style.display = '';
+      document.getElementById('emptyMsg').textContent = 'No jobs match the current filters.';
+      return;
+    }
+    empty.style.display = 'none';
+
+    if (!grouped){
+      container.innerHTML = `<div class="${view==='grid'?'job-grid':'job-list'}">${rows.map(jobCardHtml).join('')}</div>`;
+      return;
+    }
+
+    const groups = new Map();
+    rows.forEach(f => {
+      const key = f.job || '__none__';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(f);
+    });
+    const keys = [...groups.keys()].sort((a,b) => {
+      if (a === '__none__') return 1;
+      if (b === '__none__') return -1;
+      return a.localeCompare(b, undefined, {numeric:true});
+    });
+
+    container.innerHTML = keys.map(key => {
+      const items = groups.get(key);
+      const label = key === '__none__' ? 'No job number' : `Job ${escapeHtml(key)}`;
+      const isCollapsed = collapsedGroups.has(key);
+      return `
+        <div class="group-head${isCollapsed?' collapsed':''}" onclick="toggleGroup('${esc1(key)}')">
+          <span class="chev">▾</span>
+          <h3>${label}</h3>
+          <span class="g-count">${items.length} session${items.length===1?'':'s'}</span>
+        </div>
+        <div class="group-body${isCollapsed?' collapsed':''}">
+          <div class="${view==='grid'?'job-grid':'job-list'}" style="margin-bottom:10px;">
+            ${items.map(jobCardHtml).join('')}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  /* ================= Actions ================= */
+  window.openJob = function(id, name){
+    if (!MAIN_APP_URL){ notify('Set the Main App URL first (⚙ icon).', true); openModal('settingsModal'); return; }
+    const url = MAIN_APP_URL.replace(/\/$/, '') +
+      (MAIN_APP_URL.includes('?') ? '&' : '?') +
+      'load=' + encodeURIComponent(id) +
+      '&name=' + encodeURIComponent(name) +
+      '&mode=operator';
+    window.open(url, '_blank', 'noopener');
+  };
+
+  window.deleteJob = function(id, name){
+    confirmAction('Delete session', `Delete "${name}" from Google Drive? This cannot be undone.`, async () => {
+      try {
+        await scriptCall({action:'delete', id});
+        notify('Session deleted.');
+        refreshJobs();
+      } catch(err){
+        notify('Delete failed: ' + err.message, true);
+      }
+    });
+  };
+
+  window.setDateRange = function(r){
+    dateRange = r;
+    document.querySelectorAll('.chip[data-range]').forEach(c => c.classList.toggle('active', c.dataset.range === r));
+    renderJobs();
+  };
+
+  window.setView = function(v){
+    view = v;
+    localStorage.setItem(LS_VIEW_KEY, v);
+    document.getElementById('btnViewGrid').classList.toggle('active', v==='grid');
+    document.getElementById('btnViewList').classList.toggle('active', v==='list');
+    renderJobs();
+  };
+
+  window.toggleGrouped = function(){
+    grouped = !grouped;
+    localStorage.setItem(LS_GROUP_KEY, grouped ? '1' : '0');
+    document.getElementById('btnGroupToggle').classList.toggle('active', grouped);
+    renderJobs();
+  };
+
+  window.toggleGroup = function(key){
+    if (collapsedGroups.has(key)) collapsedGroups.delete(key);
+    else collapsedGroups.add(key);
+    localStorage.setItem(LS_COLLAPSED_KEY, JSON.stringify([...collapsedGroups]));
+    renderJobs();
+  };
+
+  /* ================= Settings ================= */
+  window.saveSettings = function(){
+    APPS_SCRIPT_URL = document.getElementById('scriptUrlInput').value.trim();
+    MAIN_APP_URL = document.getElementById('mainAppUrlInput').value.trim();
+    localStorage.setItem(LS_URL_KEY, APPS_SCRIPT_URL);
+    localStorage.setItem(LS_MAIN_APP_KEY, MAIN_APP_URL);
+    notify('Settings saved on this device.');
+    closeModal('settingsModal');
+    refreshJobs();
+  };
+
+  document.getElementById('btnSettings').addEventListener('click', () => {
+    document.getElementById('scriptUrlInput').value = APPS_SCRIPT_URL;
+    document.getElementById('mainAppUrlInput').value = MAIN_APP_URL;
+    openModal('settingsModal');
+  });
+
+  document.querySelectorAll('.modal-backdrop').forEach(m => {
+    m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('show'); });
+  });
+
+  /* ================= Init ================= */
+  document.getElementById('btnViewGrid').classList.toggle('active', view==='grid');
+  document.getElementById('btnViewList').classList.toggle('active', view==='list');
+  document.getElementById('btnGroupToggle').classList.toggle('active', grouped);
+
+  window.addEventListener('load', refreshJobs);
+
+})();
+</script>
+</body>
+</html>

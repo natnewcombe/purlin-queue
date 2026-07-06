@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purlin Rollformer Queue — Austruss</title>
+<style>
+  :root {
+    --brand: #ec8516;
+    --brand-dark: #c46d0e;
+    --brand-light: #fdf1e2;
+    --bg: #f4f5f7;
+    --bg2: #ffffff;
+    --tx: #23262b;
+    --tx2: #5b6270;
+    --tx3: #9aa1ad;
+    --bdr: #e2e4e9;
+    --bdr2: #d3d7de;
+    --r: 6px;
+    --rl: 10px;
+    --shadow: 0 1px 3px rgba(20,20,30,0.06), 0 1px 2px rgba(20,20,30,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171b;
+      --bg2: #1e2025;
+      --tx: #eceef1;
+      --tx2: #aab0bb;
+      --tx3: #6b7280;
+      --bdr: #2c2f36;
+      --bdr2: #383c45;
+      --brand-light: #2c220f;
+      --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--tx);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--brand); }
+
+  /* ---------- Nav ---------- */
+  .topnav {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 20px;
+    background: var(--bg2);
+    border-bottom: 0.5px solid var(--bdr);
+    box-shadow: var(--shadow);
+  }
+  .logo-mark {
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-mark img { width: 100%; height: 100%; object-fit: contain; }
+  .topnav h1 {
+    font-size: 16px; font-weight: 700; margin: 0; letter-spacing: -0.2px;
+  }
+  .topnav .sub { font-size: 12px; color: var(--tx2); margin-top: 1px; }
+  .nav-title-block { display: flex; flex-direction: column; margin-right: auto; }
+  .nav-btns { display: flex; gap: 8px; align-items: center; }
+  .mode-toggle {
+    display: flex; background: var(--bg); border: 0.5px solid var(--bdr2);
+    border-radius: 999px; padding: 2px; gap: 2px;
+  }
+  .mode-toggle button {
+    padding: 6px 12px; border-radius: 999px; font-size: 12px;
+    background: transparent; color: var(--tx2);
+  }
+  .mode-toggle button.active { background: var(--brand); color: #fff; }
+
+  /* Office / Operator visibility */
+  body.mode-operator .office-only { display: none !important; }
+  body:not(.mode-operator) .operator-only { display: none !important; }
+  body.mode-operator tbody tr:not(.done) { cursor: pointer; }
+  body.mode-operator input[type=checkbox] { width: 19px; height: 19px; cursor: pointer; }
+
+  /* ---------- Buttons ---------- */
+  button {
+    font-family: inherit; cursor: pointer; border: none;
+    font-size: 13px; font-weight: 600; border-radius: var(--r);
+    padding: 8px 14px; transition: filter .12s ease, background .12s ease;
+  }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-primary:active { filter: brightness(0.94); }
+  .btn-ghost { background: transparent; color: var(--tx2); border: 0.5px solid var(--bdr2); }
+  .btn-ghost:hover { background: var(--bg); color: var(--tx); }
+  .btn-danger { background: #fff0ee; color: #c0392b; }
+  .btn-danger:hover { background: #ffe1dd; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .icon-btn {
+    width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; color: var(--tx2); border-radius: var(--r); padding: 0;
+  }
+  .icon-btn:hover { background: var(--bg); color: var(--tx); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* ---------- Layout ---------- */
+  main { max-width: 1180px; margin: 0 auto; padding: 18px 20px 60px; }
+  .card {
+    background: var(--bg2);
+    border: 0.5px solid var(--bdr);
+    border-radius: var(--rl);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 18px; cursor: pointer; user-select: none;
+  }
+  .card-head h2 { font-size: 14px; margin: 0; flex: 1; }
+  .card-head .chev { color: var(--tx3); transition: transform .15s ease; font-size: 12px; }
+  .card.collapsed .card-body { display: none; }
+  .card.collapsed .chev { transform: rotate(-90deg); }
+  .card-body { padding: 0 18px 18px; }
+
+  /* ---------- Import banner ---------- */
+  .dropzone {
+    border: 1.5px dashed var(--bdr2);
+    border-radius: var(--rl);
+    padding: 26px 16px;
+    text-align: center;
+    background: var(--brand-light);
+    color: var(--tx2);
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .dropzone.drag { border-color: var(--brand); background: #fbe4c4; }
+  .dropzone strong { color: var(--tx); }
+  .dropzone input[type=file] { display: none; }
+
+  .import-banner {
+    background: linear-gradient(90deg, var(--brand), var(--brand-dark));
+    color: #fff; border-radius: var(--rl); padding: 12px 16px;
+    display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+    font-size: 13px; font-weight: 600;
+  }
+  .import-banner .imeta { opacity: 0.92; font-weight: 400; }
+
+  /* ---------- Job info ---------- */
+  .job-info { display: flex; flex-wrap: wrap; gap: 14px; padding: 14px 18px; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+  .field label { font-size: 11px; color: var(--tx3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .field input, .field select {
+    font-family: inherit; font-size: 13px; padding: 7px 9px;
+    border: 0.5px solid var(--bdr2); border-radius: var(--r);
+    background: var(--bg2); color: var(--tx);
+  }
+  .field input:focus, .field select:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+
+  /* ---------- Stat grid ---------- */
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr));
+    gap: 10px; padding: 0 18px 16px;
+  }
+  .stat {
+    background: var(--bg); border: 0.5px solid var(--bdr); border-radius: var(--r);
+    padding: 10px 12px;
+  }
+  .stat .n { font-size: 20px; font-weight: 800; color: var(--tx); line-height: 1.1; }
+  .stat .l { font-size: 11px; color: var(--tx2); margin-top: 3px; }
+
+  /* ---------- Filter bar ---------- */
+  .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 18px 14px; }
+  .chip {
+    font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+    border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--tx2); cursor: pointer;
+  }
+  .chip.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .filter-bar select, .filter-bar input[type=text] {
+    font-family: inherit; font-size: 12px; padding: 6px 10px; border-radius: 999px;
+    border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--tx);
+  }
+  .filter-bar .spacer { flex: 1; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 18px 10px; }
+  .chip-row .chip-label { font-size: 11px; color: var(--tx3); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; align-self: center; margin-right: 2px; }
+  .chip-count { opacity: 0.75; font-weight: 400; margin-left: 3px; }
+
+  /* ---------- Ready jobs (operator) ---------- */
+  .ready-job {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    border: 0.5px solid var(--bdr); border-radius: var(--r); margin-bottom: 8px;
+    background: var(--bg2);
+  }
+  .ready-job .rj-main { flex: 1; }
+  .ready-job .rj-title { font-size: 14px; font-weight: 700; }
+  .ready-job .rj-meta { font-size: 12px; color: var(--tx3); margin-top: 2px; }
+
+  /* ---------- Progress by profile (operator) ---------- */
+  .progress-row {
+    display: flex; align-items: center; gap: 14px; padding: 10px 0;
+    border-bottom: 0.5px solid var(--bdr);
+  }
+  .progress-row:last-child { border-bottom: none; }
+  .progress-row.pr-total { padding-bottom: 14px; margin-bottom: 4px; border-bottom: 1px solid var(--bdr2); }
+  .progress-row .pr-label { width: 170px; flex-shrink: 0; font-size: 13px; font-weight: 700; }
+  .progress-row.pr-total .pr-label { font-size: 14px; }
+  .progress-row .pr-sub { font-size: 11px; color: var(--tx3); font-weight: 400; margin-top: 1px; }
+  .progress-row .pr-bar-wrap { flex: 1; min-width: 60px; }
+  .progress-bar-track { background: var(--bg); border-radius: 999px; height: 8px; overflow: hidden; border: 0.5px solid var(--bdr); }
+  .progress-bar-fill { background: var(--brand); height: 100%; border-radius: 999px; transition: width .2s ease; }
+  .progress-row.pr-total .progress-bar-fill { background: var(--brand-dark); }
+  .progress-row .pr-nums { width: 165px; flex-shrink: 0; text-align: right; font-size: 12px; color: var(--tx2); font-variant-numeric: tabular-nums; }
+  @media (max-width: 640px) {
+    .progress-row { flex-wrap: wrap; }
+    .progress-row .pr-label, .progress-row .pr-nums { width: auto; }
+    .progress-row .pr-bar-wrap { order: 3; flex-basis: 100%; }
+  }
+
+  /* ---------- Table ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px;
+    color: var(--tx3); font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--bdr);
+    background: var(--bg);
+  }
+  tbody td { padding: 8px 10px; border-bottom: 0.5px solid var(--bdr); vertical-align: middle; }
+  tbody tr.dragging { opacity: 0.35; }
+  tbody tr.drag-over td { border-top: 2px solid var(--brand); }
+  tbody tr.done { opacity: 0.5; }
+  tbody tr.done .mark { text-decoration: line-through; }
+  .drag-handle { cursor: grab; color: var(--tx3); font-size: 14px; padding: 0 4px; user-select: none; }
+  .order-num { color: var(--tx3); font-variant-numeric: tabular-nums; width: 26px; display: inline-block; }
+  .tag { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .tag-site { background: #e3f0ff; color: #1a5fb4; }
+  .tag-cassette { background: #f1e8ff; color: #7b3ff2; }
+  @media (prefers-color-scheme: dark) {
+    .tag-site { background: #12283f; color: #7cb3ff; }
+    .tag-cassette { background: #2a1f42; color: #c3a3ff; }
+  }
+  .mark { font-weight: 700; }
+  .mono { font-variant-numeric: tabular-nums; }
+  .row-actions { display: flex; gap: 4px; align-items: center; }
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--tx3); }
+  .empty-state .big { font-size: 30px; margin-bottom: 8px; }
+
+  /* ---------- Toast ---------- */
+  .sm-notify {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--tx); color: var(--bg2); padding: 10px 18px; border-radius: 999px;
+    font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    z-index: 200; max-width: 90vw; text-align: center;
+  }
+  .sm-notify.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .sm-notify.err { background: #c0392b; }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(10,10,15,0.45);
+    display: none; align-items: center; justify-content: center; z-index: 150; padding: 20px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--bg2); border-radius: var(--rl); width: 100%; max-width: 480px;
+    max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .modal-head { display: flex; align-items: center; padding: 16px 18px; border-bottom: 0.5px solid var(--bdr); }
+  .modal-head h3 { font-size: 15px; margin: 0; flex: 1; }
+  .modal-body { padding: 16px 18px; overflow-y: auto; }
+  .modal-foot { padding: 12px 18px; border-top: 0.5px solid var(--bdr); display: flex; justify-content: flex-end; gap: 8px; }
+  .session-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border: 0.5px solid var(--bdr); border-radius: var(--r); margin-bottom: 8px;
+  }
+  .session-item .si-name { flex: 1; font-size: 13px; font-weight: 600; }
+  .session-item .si-meta { font-size: 11px; color: var(--tx3); }
+  .help-text { font-size: 12px; color: var(--tx2); line-height: 1.5; margin: 4px 0 12px; }
+
+  /* ---------- Print ---------- */
+  @media print {
+    .topnav, .card-head, .import-banner, .dropzone, .filter-bar, .row-actions,
+    .drag-handle, .no-print, .sm-notify, .modal-backdrop { display: none !important; }
+    body { background: #fff; }
+    main { max-width: none; padding: 0; }
+    .card { box-shadow: none; border: none; margin: 0; }
+    .card-body { display: block !important; padding: 0; }
+    table { font-size: 11px; }
+    thead th { background: #fff !important; -webkit-print-color-adjust: exact; }
+    .print-title { display: block !important; }
+  }
+  .print-title { display: none; padding: 0 0 12px; }
+  .print-title h1 { font-size: 18px; margin: 0 0 2px; }
+  .print-title .pm { font-size: 12px; color: #555; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="logo-mark"><img src="data:image/png;base64,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" alt="Austruss"></div>
+  <div class="nav-title-block">
+    <h1>Purlin Rollformer Queue</h1>
+    <div class="sub" id="jobSubline">No job loaded</div>
+  </div>
+  <div class="nav-btns">
+    <div class="mode-toggle no-print">
+      <button id="btnModeOffice" class="active" onclick="setMode('office')">Office</button>
+      <button id="btnModeOperator" onclick="setMode('operator')">Operator</button>
+    </div>
+    <button class="icon-btn no-print" id="btnSettings" title="Apps Script settings">⚙</button>
+    <button class="btn-ghost btn-sm no-print" id="btnPrint">Print / PDF</button>
+    <button class="btn-primary btn-sm no-print office-only" id="btnSessions">Sessions</button>
+  </div>
+</nav>
+
+<main>
+
+  <div class="print-title" id="printTitle">
+    <h1>Purlin Rollformer Run Queue</h1>
+    <div class="pm" id="printMeta"></div>
+  </div>
+
+  <!-- Import -->
+  <div class="card office-only" id="importCard">
+    <div class="card-head" onclick="toggleCard('importCard')">
+      <h2>Import Job Info File</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="card-body">
+      <p class="help-text">
+        Upload the job's Excel file. This reads the <strong>PURLIN - SITE</strong> and
+        <strong>PURLIN - CASSETTES / FACTORY</strong> tabs and pulls Job No., Zone, Mark, Material,
+        Size, Gauge, Qty and Length for every line item.
+      </p>
+      <label class="dropzone" id="dropzone" for="fileInput">
+        <div><strong>Click to choose a file</strong> or drag an .xlsx here</div>
+        <div style="font-size:12px;margin-top:4px;">Reads PURLIN - SITE &amp; PURLIN - CASSETTES / FACTORY tabs</div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls">
+      </label>
+    </div>
+  </div>
+
+  <!-- Ready jobs (operator) -->
+  <div class="card operator-only" id="readyJobsCard">
+    <div class="card-head" onclick="toggleCard('readyJobsCard')">
+      <h2>Ready Jobs</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="card-body">
+      <p class="help-text">Jobs saved from the office. Tap one to load its queue below.</p>
+      <button class="btn-ghost btn-sm" style="margin-bottom:12px;" onclick="refreshReadyJobs()">Refresh list</button>
+      <div id="readyJobsList"><p class="help-text">Set the Apps Script URL (⚙) to see ready jobs.</p></div>
+    </div>
+  </div>
+
+  <!-- Job info + stats -->
+  <div class="card" id="jobCard" style="display:none;">
+    <div class="card-body" style="padding-top:16px;">
+      <div class="job-info">
+        <div class="field">
+          <label>Job No.</label>
+          <input type="text" id="jobNo" placeholder="—">
+        </div>
+        <div class="field">
+          <label>Zone / Stage</label>
+          <input type="text" id="jobZone" placeholder="—">
+        </div>
+        <div class="field office-only" style="flex:1;min-width:200px;">
+          <label>Session name (optional revision tag)</label>
+          <input type="text" id="sessionLabel" placeholder="Leave blank to keep one file per job">
+        </div>
+      </div>
+      <div class="stat-grid" id="statGrid"></div>
+    </div>
+  </div>
+
+  <!-- Progress by profile (operator) -->
+  <div class="card operator-only" id="progressCard" style="display:none;">
+    <div class="card-head" onclick="toggleCard('progressCard')">
+      <h2>Progress by Size &amp; Gauge</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="card-body">
+      <div id="progressList"></div>
+    </div>
+  </div>
+
+  <!-- Queue -->
+  <div class="card" id="queueCard" style="display:none;">
+    <div class="card-head" onclick="toggleCard('queueCard')">
+      <h2>Run Queue</h2>
+      <span class="chev">▾</span>
+    </div>
+    <div class="card-body">
+      <div class="filter-bar operator-only" style="padding-bottom:6px;">
+        <button class="btn-primary btn-sm" id="btnSaveProgress" onclick="saveSession()" style="flex:1;">Save progress</button>
+      </div>
+      <div class="filter-bar">
+        <button class="chip active" data-group="ALL" onclick="setGroupFilter('ALL')">All</button>
+        <button class="chip" data-group="SITE" onclick="setGroupFilter('SITE')">Site</button>
+        <button class="chip" data-group="CASSETTE" onclick="setGroupFilter('CASSETTE')">Cassettes / Factory</button>
+        <input type="text" id="searchBox" placeholder="Search mark…" oninput="renderTable()">
+        <span class="spacer"></span>
+        <button class="btn-ghost btn-sm no-print office-only" onclick="clearCompleted()">Clear completed</button>
+      </div>
+      <div class="chip-row" id="typeChips"></div>
+      <div class="chip-row" id="profileChips"></div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th class="no-print office-only" style="width:24px;"></th>
+            <th style="width:34px;">#</th>
+            <th>Mark</th>
+            <th>Group</th>
+            <th>Material</th>
+            <th>Size</th>
+            <th>Gauge</th>
+            <th>Qty</th>
+            <th>Length</th>
+            <th class="no-print" style="width:70px;">Done</th>
+            <th class="no-print office-only" style="width:90px;"></th>
+          </tr>
+        </thead>
+        <tbody id="queueBody"></tbody>
+      </table>
+      </div>
+      <div class="empty-state" id="emptyState" style="display:none;">
+        <div class="big">📭</div>
+        No items match the current filters.
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Sessions modal -->
+<div class="modal-backdrop" id="sessionsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Sessions (Google Drive)</h3>
+      <button class="icon-btn" onclick="closeModal('sessionsModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <button class="btn-primary btn-sm" style="flex:1;" onclick="saveSession()">Save current queue</button>
+        <button class="btn-ghost btn-sm" onclick="refreshSessionList()">Refresh list</button>
+      </div>
+      <div id="sessionList"><p class="help-text">Loading…</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm modal -->
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-head"><h3 id="confirmTitle">Confirm</h3></div>
+    <div class="modal-body"><p id="confirmBody" style="font-size:13px;color:var(--tx2);"></p></div>
+    <div class="modal-foot">
+      <button class="btn-ghost btn-sm" onclick="closeModal('confirmModal')">Cancel</button>
+      <button class="btn-danger btn-sm" id="confirmActionBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Apps Script Backend</h3>
+      <button class="icon-btn" onclick="closeModal('settingsModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="help-text">
+        Paste the Web App URL of the deployed Apps Script for this tool. This is stored only in this
+        browser's local storage (not synced) — set it once per computer, including the machine operator's PC.
+      </p>
+      <div class="field">
+        <label>Web App URL</label>
+        <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-primary btn-sm" onclick="saveScriptUrl()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="sm-notify" id="notify"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  /* ================= State ================= */
+  let queue = [];          // {id, group, mark, material, size, gauge, qty, length, status, order}
+  let groupFilter = 'ALL';
+  let typeFilter = 'ALL';       // material value, or 'ALL'
+  let profileFilter = null;     // "SIZE x GAUGE BMT" key, or null
+  let mode = 'office';          // 'office' | 'operator'
+  let currentSessionFilename = null; // filename of the loaded/saved Drive session, so re-saves overwrite it
+
+  const LS_URL_KEY = 'plq_script_url';
+  let APPS_SCRIPT_URL = localStorage.getItem(LS_URL_KEY) || '';
+
+  // Known purlin/siderail profiles, used only to order the profile chips sensibly —
+  // any profile actually found in imported data is shown even if it's not in this list.
+  const PROFILE_HINTS = [
+    'C250 x 1.9 BMT','C200 x 1.9 BMT','C250 x 2.4 BMT','C200 x 2.4 BMT',
+    'SR251 x 1.9 BMT','SR201 x 1.9 BMT','SR251 x 2.4 BMT','SR201 x 2.4 BMT','SR151 x 1.9 BMT'
+  ];
+  function normProfile(s){ return String(s).replace(/\s+/g,'').toUpperCase(); }
+  function profileKey(it){ return `${it.size} x ${it.gauge} BMT`; }
+  function materialLabel(m){
+    if (/purlin/i.test(m)) return 'Purlins';
+    if (/siderail/i.test(m)) return 'Siderails';
+    if (/channel/i.test(m)) return 'Channel';
+    return m || 'Other';
+  }
+
+  /* ================= Utilities ================= */
+  function notify(msg, isErr){
+    const n = document.getElementById('notify');
+    n.textContent = msg;
+    n.className = 'sm-notify show' + (isErr ? ' err' : '');
+    clearTimeout(n._t);
+    n._t = setTimeout(()=> n.classList.remove('show'), 3200);
+  }
+  function uid(){ return 'i' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+  function toggleCard(id){ document.getElementById(id).classList.toggle('collapsed'); }
+  function openModal(id){ document.getElementById(id).classList.add('show'); }
+  function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+  function fmtNum(n, d){ return (Math.round(n*Math.pow(10,d))/Math.pow(10,d)).toLocaleString(); }
+
+  function confirmAction(title, body, onYes){
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmBody').textContent = body;
+    const btn = document.getElementById('confirmActionBtn');
+    const clone = btn.cloneNode(true);
+    btn.parentNode.replaceChild(clone, btn);
+    clone.addEventListener('click', ()=>{ closeModal('confirmModal'); onYes(); });
+    openModal('confirmModal');
+  }
+
+  /* ================= Excel parsing ================= */
+  function findSheet(workbook, patterns){
+    return workbook.SheetNames.find(name => {
+      const n = name.toLowerCase();
+      return patterns.every(p => n.includes(p));
+    });
+  }
+
+  function sheetToGrid(workbook, sheetName){
+    const ws = workbook.Sheets[sheetName];
+    return XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+  }
+
+  function extractJobNo(grid){
+    for (let r=0; r<Math.min(grid.length,12); r++){
+      const row = grid[r] || [];
+      for (let c=0; c<row.length; c++){
+        const v = row[c];
+        if (typeof v === 'string'){
+          const m = v.match(/Job\s*No\.?\s*[:\-]?\s*(\S+)/i);
+          if (m) return m[1];
+        }
+      }
+    }
+    return '';
+  }
+
+  function extractZone(grid){
+    for (let r=0; r<Math.min(grid.length,12); r++){
+      const row = grid[r] || [];
+      for (let c=0; c<row.length; c++){
+        const v = row[c];
+        if (typeof v === 'string' && /zone\s*\/\s*stage\s*\/\s*building/i.test(v)){
+          for (let cc=c+1; cc<Math.min(c+6,row.length); cc++){
+            if (row[cc] !== null && row[cc] !== undefined && String(row[cc]).trim() !== ''){
+              return String(row[cc]).trim();
+            }
+          }
+        }
+      }
+    }
+    return '';
+  }
+
+  function findHeaderRow(grid){
+    for (let r=0; r<Math.min(grid.length,20); r++){
+      const row = grid[r] || [];
+      if (row.some(c => typeof c === 'string' && c.trim().toLowerCase() === 'mark')) return r;
+    }
+    return -1;
+  }
+
+  function parseGauge(sizeStr){
+    if (!sizeStr) return '';
+    const m = String(sizeStr).match(/([\d.]+)\s*BMT/i);
+    return m ? m[1] : '';
+  }
+  function parseSizeBase(sizeStr){
+    if (!sizeStr) return '';
+    return String(sizeStr).replace(/\s*x\s*[\d.]+\s*BMT.*$/i, '').trim();
+  }
+
+  function parseSheetItems(workbook, sheetName, groupTag){
+    if (!sheetName) return {items:[], jobNo:'', zone:''};
+    const grid = sheetToGrid(workbook, sheetName);
+    const jobNo = extractJobNo(grid);
+    const zone = extractZone(grid);
+    const headerRow = findHeaderRow(grid);
+    if (headerRow === -1) return {items:[], jobNo, zone};
+
+    const header = grid[headerRow];
+    const colIdx = {};
+    header.forEach((h,i) => {
+      if (typeof h === 'string'){
+        const key = h.trim().toLowerCase();
+        if (key === 'mark') colIdx.mark = i;
+        else if (key === 'material') colIdx.material = i;
+        else if (key === 'size') colIdx.size = i;
+        else if (key === 'qty') colIdx.qty = i;
+        else if (key === 'length') colIdx.length = i;
+        else if (key === 'finish') colIdx.finish = i;
+      }
+    });
+
+    const items = [];
+    for (let r=headerRow+1; r<grid.length; r++){
+      const row = grid[r] || [];
+      const mark = colIdx.mark !== undefined ? row[colIdx.mark] : null;
+      if (mark === null || mark === undefined || String(mark).trim()==='') continue;
+      const qtyRaw = colIdx.qty !== undefined ? row[colIdx.qty] : null;
+      const lenRaw = colIdx.length !== undefined ? row[colIdx.length] : null;
+      // Skip sign-off / footer rows (e.g. "Drawn By:", initials, "Total Weight:")
+      // that coincidentally land in the Mark/Qty columns — a real line item always
+      // has numeric Qty and Length.
+      if (typeof qtyRaw !== 'number' || typeof lenRaw !== 'number') continue;
+      const size = colIdx.size !== undefined ? row[colIdx.size] : '';
+      items.push({
+        id: uid(),
+        group: groupTag,
+        mark: String(mark).trim(),
+        material: colIdx.material !== undefined ? String(row[colIdx.material]||'').trim() : '',
+        size: parseSizeBase(size),
+        gauge: parseGauge(size),
+        qty: qtyRaw,
+        length: lenRaw,
+        finish: colIdx.finish !== undefined ? String(row[colIdx.finish]||'').trim() : '',
+        status: 'pending'
+      });
+    }
+    return {items, jobNo, zone};
+  }
+
+  function handleWorkbook(workbook){
+    const siteSheet = findSheet(workbook, ['purlin','site']);
+    const cassSheet = findSheet(workbook, ['purlin','cassette']) || findSheet(workbook, ['purlin','factory']);
+
+    if (!siteSheet && !cassSheet){
+      notify('No PURLIN - SITE or PURLIN - CASSETTES / FACTORY tabs found in this file.', true);
+      return;
+    }
+
+    const siteData = parseSheetItems(workbook, siteSheet, 'SITE');
+    const cassData = parseSheetItems(workbook, cassSheet, 'CASSETTE');
+
+    const jobNo = siteData.jobNo || cassData.jobNo || '';
+    const zone = siteData.zone || cassData.zone || '';
+
+    const combined = [...siteData.items, ...cassData.items];
+    combined.forEach((it, i) => it.order = i);
+
+    if (combined.length === 0){
+      notify('Tabs found, but no line items could be read. Check the file layout.', true);
+      return;
+    }
+
+    queue = combined;
+    currentSessionFilename = null;
+    document.getElementById('jobNo').value = jobNo;
+    document.getElementById('jobZone').value = zone;
+    document.getElementById('sessionLabel').value = '';
+    document.getElementById('jobCard').style.display = '';
+    document.getElementById('progressCard').style.display = '';
+    document.getElementById('queueCard').style.display = '';
+    document.getElementById('importCard').classList.add('collapsed');
+    updateJobSubline();
+    populateFilterOptions();
+    renderAll();
+    notify(`Imported ${combined.length} items (${siteData.items.length} site, ${cassData.items.length} cassette/factory).`);
+  }
+
+  function readFile(file){
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type:'array'});
+        handleWorkbook(workbook);
+      } catch(err){
+        notify('Could not read that file: ' + err.message, true);
+      }
+    };
+    reader.onerror = () => notify('Failed to read file.', true);
+    reader.readAsArrayBuffer(file);
+  }
+
+  /* ================= Rendering ================= */
+  function updateJobSubline(){
+    const job = document.getElementById('jobNo').value || '—';
+    const zone = document.getElementById('jobZone').value || '—';
+    document.getElementById('jobSubline').textContent = `Job ${job} · Zone ${zone}`;
+    document.getElementById('printMeta').textContent =
+      `Job ${job} · Zone ${zone} · Printed ${new Date().toLocaleString('en-AU')}`;
+  }
+
+  function populateFilterOptions(){
+    typeFilter = 'ALL';
+    profileFilter = null;
+    renderTypeChips();
+    renderProfileChips();
+  }
+
+  function renderTypeChips(){
+    const materials = [...new Set(queue.map(i => i.material).filter(Boolean))];
+    materials.sort((a,b) => {
+      const rank = m => /purlin/i.test(m) ? 0 : /siderail/i.test(m) ? 1 : 2;
+      return rank(a) - rank(b) || a.localeCompare(b);
+    });
+    const el = document.getElementById('typeChips');
+    const chips = [`<span class="chip-label">Type</span>`,
+      `<button class="chip${typeFilter==='ALL'?' active':''}" onclick="setTypeFilter('ALL')">All</button>`]
+      .concat(materials.map(m => {
+        const count = queue.filter(i => i.material === m).length;
+        const val = escapeHtml(m).replace(/'/g,"\\'");
+        return `<button class="chip${typeFilter===m?' active':''}" onclick="setTypeFilter('${val}')">${escapeHtml(materialLabel(m))}<span class="chip-count">${count}</span></button>`;
+      }));
+    el.innerHTML = chips.join('');
+  }
+
+  function renderProfileChips(){
+    const inScope = queue.filter(i => typeFilter==='ALL' || i.material === typeFilter);
+    const keys = [...new Set(inScope.map(profileKey))];
+    keys.sort((a,b) => {
+      const ia = PROFILE_HINTS.findIndex(h => normProfile(h)===normProfile(a));
+      const ib = PROFILE_HINTS.findIndex(h => normProfile(h)===normProfile(b));
+      return (ia===-1?999:ia) - (ib===-1?999:ib) || a.localeCompare(b);
+    });
+    const el = document.getElementById('profileChips');
+    if (!keys.length){ el.innerHTML = ''; return; }
+    const chips = [`<span class="chip-label">Profile</span>`,
+      `<button class="chip${!profileFilter?' active':''}" onclick="setProfileFilter(null)">All</button>`]
+      .concat(keys.map(k => {
+        const count = inScope.filter(i => profileKey(i)===k).length;
+        const val = escapeHtml(k).replace(/'/g,"\\'");
+        return `<button class="chip${profileFilter===k?' active':''}" onclick="setProfileFilter('${val}')">${escapeHtml(k)}<span class="chip-count">${count}</span></button>`;
+      }));
+    el.innerHTML = chips.join('');
+  }
+
+  window.setTypeFilter = function(m){
+    typeFilter = m;
+    profileFilter = null;
+    renderTypeChips();
+    renderProfileChips();
+    renderTable();
+  };
+
+  window.setProfileFilter = function(k){
+    profileFilter = (profileFilter === k) ? null : k;
+    renderProfileChips();
+    renderTable();
+  };
+
+  function setGroupFilter(g){
+    groupFilter = g;
+    document.querySelectorAll('.chip[data-group]').forEach(c => c.classList.toggle('active', c.dataset.group === g));
+    renderTable();
+  }
+
+  function computeStats(){
+    const pending = queue.filter(i => i.status !== 'done');
+    const site = queue.filter(i => i.group === 'SITE');
+    const cass = queue.filter(i => i.group === 'CASSETTE');
+    const totalLenM = queue.reduce((s,i)=> s + (i.qty * i.length)/1000, 0);
+    const pendingQty = pending.reduce((s,i)=> s + i.qty, 0);
+    return {
+      total: queue.length,
+      pending: pending.length,
+      done: queue.length - pending.length,
+      site: site.length,
+      cass: cass.length,
+      totalLenM,
+      pendingQty
+    };
+  }
+
+  function renderStats(){
+    const s = computeStats();
+    const grid = document.getElementById('statGrid');
+    grid.innerHTML = [
+      {n:s.total, l:'Total items'},
+      {n:s.pending, l:'Pending'},
+      {n:s.done, l:'Completed'},
+      {n:s.site, l:'Site items'},
+      {n:s.cass, l:'Cassette/Factory items'},
+      {n:fmtNum(s.totalLenM,1)+' m', l:'Total length'}
+    ].map(x => `<div class="stat"><div class="n">${x.n}</div><div class="l">${x.l}</div></div>`).join('');
+  }
+
+  function filteredQueue(){
+    const search = document.getElementById('searchBox').value.trim().toLowerCase();
+    return queue
+      .filter(i => groupFilter === 'ALL' || i.group === groupFilter)
+      .filter(i => typeFilter === 'ALL' || i.material === typeFilter)
+      .filter(i => !profileFilter || profileKey(i) === profileFilter)
+      .filter(i => !search || i.mark.toLowerCase().includes(search))
+      .sort((a,b) => a.order - b.order);
+  }
+
+  let dragSrcId = null;
+
+  function renderTable(){
+    const rows = filteredQueue();
+    const body = document.getElementById('queueBody');
+    document.getElementById('emptyState').style.display = rows.length ? 'none' : '';
+    body.innerHTML = rows.map((it, idx) => `
+      <tr draggable="true" data-id="${it.id}" class="${it.status==='done' ? 'done':''}">
+        <td class="no-print office-only"><span class="drag-handle">⠿</span></td>
+        <td class="order-num">${idx+1}</td>
+        <td class="mark">${escapeHtml(it.mark)}</td>
+        <td><span class="tag ${it.group==='SITE'?'tag-site':'tag-cassette'}">${it.group==='SITE'?'Site':'Cassette'}</span></td>
+        <td>${escapeHtml(it.material)}</td>
+        <td>${escapeHtml(it.size)}</td>
+        <td class="mono">${it.gauge ? it.gauge+' BMT' : '—'}</td>
+        <td class="mono">${it.qty}</td>
+        <td class="mono">${fmtNum(it.length,0)} mm</td>
+        <td class="no-print"><input type="checkbox" ${it.status==='done'?'checked':''} onchange="toggleDone('${it.id}')"></td>
+        <td class="no-print office-only">
+          <div class="row-actions">
+            <button class="icon-btn" title="Move up" onclick="moveItem('${it.id}',-1)">↑</button>
+            <button class="icon-btn" title="Move down" onclick="moveItem('${it.id}',1)">↓</button>
+            <button class="icon-btn" title="Remove" onclick="removeItem('${it.id}')">✕</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+
+    body.querySelectorAll('tr[draggable]').forEach(row => {
+      row.addEventListener('dragstart', () => { dragSrcId = row.dataset.id; row.classList.add('dragging'); });
+      row.addEventListener('dragend', () => row.classList.remove('dragging'));
+      row.addEventListener('dragover', (e) => { e.preventDefault(); row.classList.add('drag-over'); });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        const targetId = row.dataset.id;
+        if (dragSrcId && targetId && dragSrcId !== targetId) reorder(dragSrcId, targetId);
+      });
+      // Operator mode: tap anywhere on the row (except the checkbox itself) to mark done
+      row.addEventListener('click', (e) => {
+        if (mode !== 'operator') return;
+        if (e.target.tagName === 'INPUT') return;
+        toggleDone(row.dataset.id);
+      });
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderProgress(){
+    const el = document.getElementById('progressList');
+    if (!el) return;
+    if (!queue.length){ el.innerHTML = '<p class="help-text">No items loaded.</p>'; return; }
+
+    function summarize(items){
+      const done = items.filter(i => i.status === 'done');
+      const totalQty = items.reduce((s,i)=>s+i.qty,0);
+      const doneQty = done.reduce((s,i)=>s+i.qty,0);
+      const totalLen = items.reduce((s,i)=>s+(i.qty*i.length)/1000,0);
+      const doneLen = done.reduce((s,i)=>s+(i.qty*i.length)/1000,0);
+      const pct = totalQty ? Math.round((doneQty/totalQty)*100) : 0;
+      return {totalQty, doneQty, totalLen, doneLen, pct, lines: items.length, doneLines: done.length};
+    }
+
+    function row(label, sub, s, extraClass){
+      return `
+        <div class="progress-row ${extraClass||''}">
+          <div class="pr-label">${label}<div class="pr-sub">${sub}</div></div>
+          <div class="pr-bar-wrap">
+            <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${s.pct}%;"></div></div>
+          </div>
+          <div class="pr-nums">${s.doneQty}/${s.totalQty} pcs · ${fmtNum(s.doneLen,1)}/${fmtNum(s.totalLen,1)} m</div>
+        </div>`;
+    }
+
+    const overall = summarize(queue);
+    let html = row('All profiles', `${overall.doneLines}/${overall.lines} lines · ${overall.pct}% done`, overall, 'pr-total');
+
+    const keys = [...new Set(queue.map(profileKey))];
+    keys.sort((a,b) => {
+      const ia = PROFILE_HINTS.findIndex(h => normProfile(h)===normProfile(a));
+      const ib = PROFILE_HINTS.findIndex(h => normProfile(h)===normProfile(b));
+      return (ia===-1?999:ia) - (ib===-1?999:ib) || a.localeCompare(b);
+    });
+    html += keys.map(k => {
+      const items = queue.filter(i => profileKey(i) === k);
+      const s = summarize(items);
+      return row(escapeHtml(k), `${s.doneLines}/${s.lines} lines`, s);
+    }).join('');
+
+    el.innerHTML = html;
+  }
+
+  function renderAll(){ renderStats(); renderTypeChips(); renderProfileChips(); renderProgress(); renderTable(); }
+
+  /* ================= Row actions ================= */
+  window.toggleDone = function(id){
+    const it = queue.find(i => i.id === id);
+    if (it) it.status = it.status === 'done' ? 'pending' : 'done';
+    renderAll();
+  };
+
+  window.removeItem = function(id){
+    confirmAction('Remove item', 'Remove this item from the queue?', () => {
+      queue = queue.filter(i => i.id !== id);
+      renderAll();
+    });
+  };
+
+  window.moveItem = function(id, dir){
+    const sorted = [...queue].sort((a,b)=>a.order-b.order);
+    const idx = sorted.findIndex(i => i.id === id);
+    const swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    const tmp = sorted[idx].order;
+    sorted[idx].order = sorted[swapIdx].order;
+    sorted[swapIdx].order = tmp;
+    renderAll();
+  };
+
+  function reorder(srcId, targetId){
+    const sorted = [...queue].sort((a,b)=>a.order-b.order);
+    const srcIdx = sorted.findIndex(i => i.id === srcId);
+    const targetIdx = sorted.findIndex(i => i.id === targetId);
+    if (srcIdx === -1 || targetIdx === -1) return;
+    const [moved] = sorted.splice(srcIdx, 1);
+    sorted.splice(targetIdx, 0, moved);
+    sorted.forEach((it, i) => it.order = i);
+    renderAll();
+  }
+
+  window.clearCompleted = function(){
+    const doneCount = queue.filter(i=>i.status==='done').length;
+    if (!doneCount){ notify('No completed items to clear.'); return; }
+    confirmAction('Clear completed', `Remove ${doneCount} completed item(s) from the queue?`, () => {
+      queue = queue.filter(i => i.status !== 'done');
+      renderAll();
+    });
+  };
+
+  /* ================= Sessions (Google Drive) ================= */
+  function sessionFilename(){
+    // Once a session has been loaded or saved, keep reusing that exact filename so
+    // repeated saves (e.g. the operator ticking off items through the day) overwrite
+    // the same Drive file instead of piling up duplicates.
+    if (currentSessionFilename) return currentSessionFilename;
+    const job = document.getElementById('jobNo').value.trim() || 'JOB';
+    const zone = document.getElementById('jobZone').value.trim() || '0';
+    const label = document.getElementById('sessionLabel').value.trim();
+    return label
+      ? `${job}--ZONE ${zone}--PURLIN QUEUE - ${label}.json`
+      : `${job}--ZONE ${zone}--PURLIN QUEUE.json`;
+  }
+
+  function parseSessionFilename(name){
+    const m = name.match(/^(.+?)--ZONE\s*(.+?)--PURLIN QUEUE(?:\s*-\s*(.+))?\.json$/i);
+    if (!m) return {job:'', zone:'', label:''};
+    return {job:m[1], zone:m[2], label:m[3]||''};
+  }
+
+  async function scriptCall(params){
+    const url = APPS_SCRIPT_URL + '?' + new URLSearchParams(params);
+    const resp = await fetch(url, {redirect:'follow'});
+    const text = await resp.text();
+    return JSON.parse(text);
+  }
+
+  async function scriptSave(filename, jsonStr){
+    const formData = new FormData();
+    formData.append('action','save');
+    formData.append('filename', filename);
+    formData.append('content', jsonStr);
+    await fetch(APPS_SCRIPT_URL, {method:'POST', body:formData, mode:'no-cors'});
+    await new Promise(r => setTimeout(r, 2500));
+    const list = await scriptCall({action:'list'});
+    return (list.files || []).find(f => f.name === filename) || null;
+  }
+
+  window.saveSession = async function(){
+    if (!APPS_SCRIPT_URL){ notify('Set the Apps Script URL first (⚙ icon).', true); openModal('settingsModal'); return; }
+    if (!queue.length){ notify('Nothing to save yet — import a job file first.', true); return; }
+    const filename = sessionFilename();
+    const payload = {
+      job: document.getElementById('jobNo').value,
+      zone: document.getElementById('jobZone').value,
+      savedAt: new Date().toISOString(),
+      items: queue
+    };
+    notify(mode === 'operator' ? 'Saving progress…' : 'Saving…');
+    try {
+      const result = await scriptSave(filename, JSON.stringify(payload));
+      if (result){
+        currentSessionFilename = filename;
+        notify(mode === 'operator' ? 'Progress saved.' : ('Session saved: ' + filename));
+        if (mode === 'office') refreshSessionList();
+      } else {
+        notify('Save sent, but could not confirm — check the session list.', true);
+      }
+    } catch(err){
+      notify('Save failed: ' + err.message, true);
+    }
+  };
+
+  async function loadSessionById(id, name){
+    notify('Loading session…');
+    try {
+      const result = await scriptCall({action:'load', id});
+      if (!result.ok){ notify('Load failed: ' + (result.error||'unknown error'), true); return; }
+      applySessionData(result.content, name || result.name || null);
+      notify('Session loaded.');
+      closeModal('sessionsModal');
+    } catch(err){
+      notify('Load failed: ' + err.message, true);
+    }
+  }
+
+  function applySessionData(content, filename){
+    queue = content.items || [];
+    document.getElementById('jobNo').value = content.job || '';
+    document.getElementById('jobZone').value = content.zone || '';
+    currentSessionFilename = filename || null;
+    if (filename){
+      const parsed = parseSessionFilename(filename);
+      document.getElementById('sessionLabel').value = parsed.label || '';
+    }
+    document.getElementById('jobCard').style.display = '';
+    document.getElementById('progressCard').style.display = '';
+    document.getElementById('queueCard').style.display = '';
+    updateJobSubline();
+    populateFilterOptions();
+    renderAll();
+  }
+
+  window.refreshSessionList = async function(){
+    const el = document.getElementById('sessionList');
+    if (!APPS_SCRIPT_URL){
+      el.innerHTML = '<p class="help-text">Set the Apps Script URL first using the ⚙ icon in the top bar.</p>';
+      return;
+    }
+    el.innerHTML = '<p class="help-text">Loading…</p>';
+    try {
+      const result = await scriptCall({action:'list'});
+      if (!result.ok){ el.innerHTML = `<p class="help-text">Error: ${result.error}</p>`; return; }
+      const files = result.files || [];
+      if (!files.length){ el.innerHTML = '<p class="help-text">No saved sessions yet.</p>'; return; }
+      el.innerHTML = files.map(f => `
+        <div class="session-item">
+          <div style="flex:1;">
+            <div class="si-name">${escapeHtml(f.name)}</div>
+            <div class="si-meta">${new Date(f.modifiedTime).toLocaleString('en-AU')}</div>
+          </div>
+          <button class="btn-ghost btn-sm" onclick="loadSessionById('${f.id}','${escapeHtml(f.name).replace(/'/g,"\\'")}')">Load</button>
+          <button class="icon-btn" title="Delete" onclick="deleteSessionById('${f.id}','${escapeHtml(f.name).replace(/'/g,"\\'")}')">🗑</button>
+        </div>
+      `).join('');
+    } catch(err){
+      el.innerHTML = `<p class="help-text">Could not reach the backend: ${err.message}</p>`;
+    }
+  };
+
+  window.deleteSessionById = function(id, name){
+    confirmAction('Delete session', `Delete "${name}" from Google Drive? This cannot be undone.`, async () => {
+      try {
+        await scriptCall({action:'delete', id});
+        notify('Session deleted.');
+        refreshSessionList();
+      } catch(err){
+        notify('Delete failed: ' + err.message, true);
+      }
+    });
+  };
+
+  window.loadSessionById = loadSessionById;
+
+  /* ================= Mode switching ================= */
+  window.setMode = function(m){
+    mode = m;
+    document.body.classList.toggle('mode-operator', m === 'operator');
+    document.getElementById('btnModeOffice').classList.toggle('active', m === 'office');
+    document.getElementById('btnModeOperator').classList.toggle('active', m === 'operator');
+    renderTable();
+    if (m === 'operator') refreshReadyJobs();
+  };
+
+  window.refreshReadyJobs = async function(){
+    const el = document.getElementById('readyJobsList');
+    if (!APPS_SCRIPT_URL){
+      el.innerHTML = '<p class="help-text">Set the Apps Script URL first using the ⚙ icon in the top bar.</p>';
+      return;
+    }
+    el.innerHTML = '<p class="help-text">Loading…</p>';
+    try {
+      const result = await scriptCall({action:'list'});
+      if (!result.ok){ el.innerHTML = `<p class="help-text">Error: ${result.error}</p>`; return; }
+      const files = result.files || [];
+      if (!files.length){ el.innerHTML = '<p class="help-text">No jobs saved from the office yet.</p>'; return; }
+      el.innerHTML = files.map(f => {
+        const parsed = parseSessionFilename(f.name);
+        const title = parsed.job ? `Job ${parsed.job} · Zone ${parsed.zone}${parsed.label ? ' · '+parsed.label : ''}` : f.name;
+        const nameArg = escapeHtml(f.name).replace(/'/g,"\\'");
+        return `
+          <div class="ready-job">
+            <div class="rj-main">
+              <div class="rj-title">${escapeHtml(title)}</div>
+              <div class="rj-meta">Updated ${new Date(f.modifiedTime).toLocaleString('en-AU')}</div>
+            </div>
+            <button class="btn-primary btn-sm" onclick="loadSessionById('${f.id}','${nameArg}')">Open</button>
+          </div>
+        `;
+      }).join('');
+    } catch(err){
+      el.innerHTML = `<p class="help-text">Could not reach the backend: ${err.message}</p>`;
+    }
+  };
+
+  /* ================= Settings ================= */
+  window.saveScriptUrl = function(){
+    const val = document.getElementById('scriptUrlInput').value.trim();
+    APPS_SCRIPT_URL = val;
+    localStorage.setItem(LS_URL_KEY, val);
+    notify('Backend URL saved on this device.');
+    closeModal('settingsModal');
+  };
+
+  /* ================= Wiring ================= */
+  document.getElementById('btnSessions').addEventListener('click', () => {
+    openModal('sessionsModal');
+    refreshSessionList();
+  });
+  document.getElementById('btnSettings').addEventListener('click', () => {
+    document.getElementById('scriptUrlInput').value = APPS_SCRIPT_URL;
+    openModal('settingsModal');
+  });
+  document.getElementById('btnPrint').addEventListener('click', () => window.print());
+  document.getElementById('jobNo').addEventListener('input', updateJobSubline);
+  document.getElementById('jobZone').addEventListener('input', updateJobSubline);
+
+  document.getElementById('fileInput').addEventListener('change', (e) => {
+    if (e.target.files[0]) readFile(e.target.files[0]);
+  });
+  const dz = document.getElementById('dropzone');
+  ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, (e)=>{ e.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, (e)=>{ e.preventDefault(); dz.classList.remove('drag'); }));
+  dz.addEventListener('drop', (e) => {
+    const file = e.dataTransfer.files[0];
+    if (file) readFile(file);
+  });
+
+  document.querySelectorAll('.modal-backdrop').forEach(m => {
+    m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('show'); });
+  });
+
+  window.toggleCard = toggleCard;
+  window.setGroupFilter = setGroupFilter;
+  window.renderTable = renderTable;
+  window.closeModal = closeModal;
+
+  /* ================= Deep link session / mode load ================= */
+  window.addEventListener('load', () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'operator') setMode('operator');
+    const loadId = params.get('load');
+    if (loadId){
+      if (!APPS_SCRIPT_URL){ notify('Set the Apps Script URL (⚙) to load shared sessions.', true); return; }
+      loadSessionById(loadId);
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
