@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purlin Queue — Operator — Austruss</title>
+<style>
+  :root {
+    --brand: #ec8516;
+    --brand-dark: #c46d0e;
+    --brand-light: #fdf1e2;
+    --bg: #f4f5f7;
+    --bg2: #ffffff;
+    --tx: #23262b;
+    --tx2: #5b6270;
+    --tx3: #9aa1ad;
+    --bdr: #e2e4e9;
+    --bdr2: #d3d7de;
+    --r: 6px;
+    --rl: 10px;
+    --shadow: 0 1px 3px rgba(20,20,30,0.06), 0 1px 2px rgba(20,20,30,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171b;
+      --bg2: #1e2025;
+      --tx: #eceef1;
+      --tx2: #aab0bb;
+      --tx3: #6b7280;
+      --bdr: #2c2f36;
+      --bdr2: #383c45;
+      --brand-light: #2c220f;
+      --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--tx);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--brand); }
+  input[type=checkbox] { width: 19px; height: 19px; cursor: pointer; }
+
+  /* ---------- Nav ---------- */
+  .topnav {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 20px;
+    background: var(--bg2);
+    border-bottom: 0.5px solid var(--bdr);
+    box-shadow: var(--shadow);
+  }
+  .logo-mark {
+    width: 38px; height: 38px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--brand); color: #fff; border-radius: 8px;
+    font-weight: 800; font-size: 14px; letter-spacing: -0.3px;
+  }
+  .topnav h1 { font-size: 16px; font-weight: 700; margin: 0; letter-spacing: -0.2px; }
+  .topnav .sub { font-size: 12px; color: var(--tx2); margin-top: 1px; }
+  .nav-title-block { display: flex; flex-direction: column; margin-right: auto; min-width: 0; }
+  .nav-title-block .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav-btns { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+  .dirty-flag { font-size: 11px; font-weight: 700; color: var(--brand-dark); background: var(--brand-light); padding: 4px 9px; border-radius: 999px; }
+
+  /* ---------- Buttons ---------- */
+  button {
+    font-family: inherit; cursor: pointer; border: none;
+    font-size: 13px; font-weight: 600; border-radius: var(--r);
+    padding: 8px 14px; transition: filter .12s ease, background .12s ease;
+  }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-primary:active { filter: brightness(0.94); }
+  .btn-ghost { background: transparent; color: var(--tx2); border: 0.5px solid var(--bdr2); }
+  .btn-ghost:hover { background: var(--bg); color: var(--tx); }
+  .btn-danger { background: #fff0ee; color: #c0392b; }
+  .btn-danger:hover { background: #ffe1dd; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .icon-btn {
+    width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; color: var(--tx2); border-radius: var(--r); padding: 0;
+  }
+  .icon-btn:hover { background: var(--bg); color: var(--tx); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* ---------- Layout ---------- */
+  .op-layout {
+    display: grid; grid-template-columns: 320px 1fr; gap: 16px;
+    max-width: 1500px; margin: 0 auto; padding: 16px 20px 60px; align-items: start;
+  }
+  @media (max-width: 880px) {
+    .op-layout { grid-template-columns: 1fr; }
+    .op-sidebar { order: 2; }
+    .op-main { order: 1; }
+  }
+  .card {
+    background: var(--bg2);
+    border: 0.5px solid var(--bdr);
+    border-radius: var(--rl);
+    box-shadow: var(--shadow);
+    margin-bottom: 14px;
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 16px; cursor: pointer; user-select: none;
+  }
+  .card-head h2 { font-size: 13px; margin: 0; flex: 1; text-transform: uppercase; letter-spacing: 0.4px; color: var(--tx2); }
+  .card-head .chev { color: var(--tx3); transition: transform .15s ease; font-size: 12px; }
+  .card.collapsed .card-body { display: none; }
+  .card.collapsed .chev { transform: rotate(-90deg); }
+  .card-body { padding: 0 16px 16px; }
+
+  /* ---------- Sidebar ---------- */
+  .op-sidebar { position: sticky; top: 66px; }
+  .sidebar-toolbar { display: flex; flex-direction: column; gap: 8px; padding: 4px 16px 12px; }
+  .sidebar-toolbar input[type=text] {
+    font-family: inherit; font-size: 13px; padding: 8px 11px; border-radius: 999px;
+    border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--tx); width: 100%;
+  }
+  .sidebar-row { display: flex; gap: 6px; }
+  .sidebar-row select {
+    font-family: inherit; font-size: 12px; padding: 6px 9px; border-radius: 999px;
+    border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--tx); flex: 1;
+  }
+  .chip {
+    font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 999px;
+    border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--tx2); cursor: pointer; white-space: nowrap;
+  }
+  .chip.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px; }
+
+  .job-list { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 14px; max-height: 62vh; overflow-y: auto; }
+  @media (max-width: 880px) { .job-list { max-height: 42vh; } }
+  .job-item {
+    border: 0.5px solid var(--bdr); border-radius: var(--r); padding: 11px 12px;
+    cursor: pointer; background: var(--bg2); transition: border-color .12s ease, background .12s ease;
+    position: relative;
+  }
+  .job-item:hover { border-color: var(--brand); }
+  .job-item.active { border-color: var(--brand); background: var(--brand-light); }
+  .job-item .ji-title { font-size: 13px; font-weight: 700; }
+  .job-item .ji-meta { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+  .job-item .ji-progress { margin-top: 8px; }
+  .job-item .ji-pct { font-size: 11px; color: var(--tx3); margin-top: 3px; }
+  .job-item .ji-del {
+    position: absolute; top: 8px; right: 8px; width: 24px; height: 24px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; color: var(--tx3); border-radius: var(--r); padding: 0; font-size: 13px;
+  }
+  .job-item .ji-del:hover { background: var(--bg); color: #c0392b; }
+
+  /* ---------- Stat grid ---------- */
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr));
+    gap: 10px; padding: 14px 16px 4px;
+  }
+  .stat {
+    background: var(--bg); border: 0.5px solid var(--bdr); border-radius: var(--r);
+    padding: 10px 12px;
+  }
+  .stat .n { font-size: 19px; font-weight: 800; color: var(--tx); line-height: 1.1; }
+  .stat .l { font-size: 11px; color: var(--tx2); margin-top: 3px; }
+
+  /* ---------- Progress by profile ---------- */
+  .progress-row {
+    display: flex; align-items: center; gap: 14px; padding: 10px 0;
+    border-bottom: 0.5px solid var(--bdr);
+  }
+  .progress-row:last-child { border-bottom: none; }
+  .progress-row.pr-total { padding-bottom: 14px; margin-bottom: 4px; border-bottom: 1px solid var(--bdr2); }
+  .progress-row .pr-label { width: 170px; flex-shrink: 0; font-size: 13px; font-weight: 700; }
+  .progress-row.pr-total .pr-label { font-size: 14px; }
+  .progress-row .pr-sub { font-size: 11px; color: var(--tx3); font-weight: 400; margin-top: 1px; }
+  .progress-row .pr-bar-wrap { flex: 1; min-width: 60px; }
+  .progress-bar-track { background: var(--bg); border-radius: 999px; height: 8px; overflow: hidden; border: 0.5px solid var(--bdr); }
+  .progress-bar-fill { background: var(--brand); height: 100%; border-radius: 999px; transition: width .2s ease; }
+  .progress-row.pr-total .progress-bar-fill { background: var(--brand-dark); }
+  .progress-row .pr-nums { width: 165px; flex-shrink: 0; text-align: right; font-size: 12px; color: var(--tx2); font-variant-numeric: tabular-nums; }
+  @media (max-width: 640px) {
+    .progress-row { flex-wrap: wrap; }
+    .progress-row .pr-label, .progress-row .pr-nums { width: auto; }
+    .progress-row .pr-bar-wrap { order: 3; flex-basis: 100%; }
+  }
+
+  /* ---------- Filter bar ---------- */
+  .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 16px 12px; }
+  .filter-bar input[type=text] {
+    font-family: inherit; font-size: 12px; padding: 6px 10px; border-radius: 999px;
+    border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--tx);
+  }
+  .filter-bar .spacer { flex: 1; }
+
+  /* ---------- Table ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px;
+    color: var(--tx3); font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--bdr);
+    background: var(--bg);
+  }
+  thead th.th-done { display: flex; align-items: center; gap: 6px; }
+  tbody td { padding: 9px 10px; border-bottom: 0.5px solid var(--bdr); vertical-align: middle; }
+  tbody tr.done { opacity: 0.5; }
+  tbody tr.done .mark { text-decoration: line-through; }
+  tbody tr:not(.done) { cursor: pointer; }
+  .order-num { color: var(--tx3); font-variant-numeric: tabular-nums; width: 26px; display: inline-block; }
+  .tag { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .tag-site { background: #e3f0ff; color: #1a5fb4; }
+  .tag-cassette { background: #f1e8ff; color: #7b3ff2; }
+  @media (prefers-color-scheme: dark) {
+    .tag-site { background: #12283f; color: #7cb3ff; }
+    .tag-cassette { background: #2a1f42; color: #c3a3ff; }
+  }
+  .mark { font-weight: 700; }
+  .mono { font-variant-numeric: tabular-nums; }
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--tx3); }
+  .empty-state .big { font-size: 30px; margin-bottom: 8px; }
+  .help-text { font-size: 12px; color: var(--tx2); line-height: 1.5; margin: 4px 0 12px; }
+
+  /* ---------- Toast ---------- */
+  .sm-notify {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--tx); color: var(--bg2); padding: 10px 18px; border-radius: 999px;
+    font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    z-index: 200; max-width: 90vw; text-align: center;
+  }
+  .sm-notify.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .sm-notify.err { background: #c0392b; }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(10,10,15,0.45);
+    display: none; align-items: center; justify-content: center; z-index: 150; padding: 20px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--bg2); border-radius: var(--rl); width: 100%; max-width: 440px;
+    max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .modal-head { display: flex; align-items: center; padding: 16px 18px; border-bottom: 0.5px solid var(--bdr); }
+  .modal-head h3 { font-size: 15px; margin: 0; flex: 1; }
+  .modal-body { padding: 16px 18px; overflow-y: auto; }
+  .modal-foot { padding: 12px 18px; border-top: 0.5px solid var(--bdr); display: flex; justify-content: flex-end; gap: 8px; }
+  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .field label { font-size: 11px; color: var(--tx3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .field input { font-family: inherit; font-size: 13px; padding: 8px 10px; border: 0.5px solid var(--bdr2); border-radius: var(--r); background: var(--bg2); color: var(--tx); }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="logo-mark">AT</div>
+  <div class="nav-title-block">
+    <h1>Operator</h1>
+    <div class="sub" id="subline">No job loaded</div>
+  </div>
+  <div class="nav-btns">
+    <span class="dirty-flag" id="dirtyFlag" style="display:none;">Unsaved changes</span>
+    <button class="btn-primary btn-sm" id="btnSaveProgress" onclick="saveProgress()" disabled>Save progress</button>
+    <button class="icon-btn" id="btnSettings" title="Backend settings">⚙</button>
+  </div>
+</nav>
+
+<div class="op-layout">
+
+  <!-- Sidebar: planned jobs -->
+  <aside class="op-sidebar">
+    <div class="card">
+      <div class="card-head" onclick="toggleCard('sidebarCard')" id="sidebarCardHead">
+        <h2>Planned Jobs</h2>
+        <button class="btn-ghost btn-sm" onclick="event.stopPropagation();refreshJobs()">Refresh</button>
+      </div>
+      <div class="card-body" id="sidebarCardBody" style="padding-top:2px;">
+        <div class="sidebar-toolbar">
+          <input type="text" id="searchBox" placeholder="Search job, zone…" oninput="renderJobList()">
+          <div class="sidebar-row">
+            <select id="sortSel" onchange="renderJobList()">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="nameAsc">Job A→Z</option>
+              <option value="mostItems">Most items</option>
+            </select>
+          </div>
+        </div>
+        <div class="chip-row">
+          <button class="chip active" data-range="ALL" onclick="setDateRange('ALL')">All</button>
+          <button class="chip" data-range="1" onclick="setDateRange('1')">Today</button>
+          <button class="chip" data-range="7" onclick="setDateRange('7')">7d</button>
+          <button class="chip" data-range="30" onclick="setDateRange('30')">30d</button>
+        </div>
+        <div class="job-list" id="jobList"></div>
+        <div class="empty-state" id="jobListEmpty" style="display:none;padding:24px 10px;">
+          <div class="big">📭</div>
+          <div id="jobListEmptyMsg">No saved jobs found.</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main: active job -->
+  <section class="op-main">
+
+    <div class="empty-state" id="noJobState">
+      <div class="big">👈</div>
+      Pick a job from the list to load its queue here.
+    </div>
+
+    <div id="activeJobWrap" style="display:none;">
+      <div class="card">
+        <div class="card-body" style="padding-top:16px;">
+          <div class="stat-grid" id="statGrid"></div>
+        </div>
+      </div>
+
+      <div class="card" id="progressCard">
+        <div class="card-head" onclick="toggleCard('progressCard')">
+          <h2>Progress by Size &amp; Gauge</h2>
+          <span class="chev">▾</span>
+        </div>
+        <div class="card-body">
+          <div id="progressList"></div>
+        </div>
+      </div>
+
+      <div class="card" id="queueCard">
+        <div class="card-head" onclick="toggleCard('queueCard')">
+          <h2>Run Queue</h2>
+          <span class="chev">▾</span>
+        </div>
+        <div class="card-body">
+          <div class="filter-bar">
+            <button class="chip active" data-group="ALL" onclick="setGroupFilter('ALL')">All</button>
+            <button class="chip" data-group="SITE" onclick="setGroupFilter('SITE')">Site</button>
+            <button class="chip" data-group="CASSETTE" onclick="setGroupFilter('CASSETTE')">Cassettes / Factory</button>
+            <input type="text" id="markSearch" placeholder="Search mark…" oninput="renderQueueTable()">
+            <span class="spacer"></span>
+            <button class="btn-ghost btn-sm" onclick="clearCompleted()">Clear completed</button>
+            <button class="btn-danger btn-sm" onclick="clearQueue()">Clear queue</button>
+          </div>
+          <div class="chip-row" id="typeChips"></div>
+          <div class="chip-row" id="profileChips"></div>
+          <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:34px;">#</th>
+                <th>Mark</th>
+                <th>Group</th>
+                <th>Material</th>
+                <th>Size</th>
+                <th>Gauge</th>
+                <th>Qty</th>
+                <th>Length</th>
+                <th class="th-done" style="width:80px;">
+                  <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllDone(this.checked)" title="Mark all visible items as done"> Done
+                </th>
+              </tr>
+            </thead>
+            <tbody id="queueBody"></tbody>
+          </table>
+          </div>
+          <div class="empty-state" id="queueEmptyState" style="display:none;">
+            <div class="big">📭</div>
+            No items match the current filters.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+</div>
+
+<!-- Confirm modal -->
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-head"><h3 id="confirmTitle">Confirm</h3></div>
+    <div class="modal-body"><p id="confirmBody" style="font-size:13px;color:var(--tx2);"></p></div>
+    <div class="modal-foot">
+      <button class="btn-ghost btn-sm" onclick="closeModal('confirmModal')">Cancel</button>
+      <button class="btn-danger btn-sm" id="confirmActionBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Backend Settings</h3>
+      <button class="icon-btn" onclick="closeModal('settingsModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="help-text">
+        Same Apps Script Web App URL used by the office app. Set once per computer.
+      </p>
+      <div class="field">
+        <label>Apps Script Web App URL</label>
+        <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-primary btn-sm" onclick="saveScriptUrl()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="sm-notify" id="notify"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  const LS_URL_KEY = 'plq_script_url'; // shared with the office app
+  let APPS_SCRIPT_URL = localStorage.getItem(LS_URL_KEY) || '';
+
+  // Known purlin/siderail profiles, used only to order profile chips/rows sensibly.
+  const PROFILE_HINTS = [
+    'C250 x 1.9 BMT','C200 x 1.9 BMT','C250 x 2.4 BMT','C200 x 2.4 BMT',
+    'SR251 x 1.9 BMT','SR201 x 1.9 BMT','SR251 x 2.4 BMT','SR201 x 2.4 BMT','SR151 x 1.9 BMT'
+  ];
+  function normProfile(s){ return String(s).replace(/\s+/g,'').toUpperCase(); }
+  function profileKey(it){ return `${it.size} x ${it.gauge} BMT`; }
+  function materialLabel(m){
+    if (/purlin/i.test(m)) return 'Purlins';
+    if (/siderail/i.test(m)) return 'Siderails';
+    if (/channel/i.test(m)) return 'Channel';
+    return m || 'Other';
+  }
+
+  /* ================= State ================= */
+  let jobFiles = [];            // list of saved sessions from Drive (with meta)
+  let dateRange = 'ALL';
+
+  let activeQueue = null;       // items[] of the currently loaded job, or null
+  let activeJob = '';
+  let activeZone = '';
+  let activeFilename = null;
+  let isDirty = false;
+
+  let groupFilter = 'ALL';
+  let typeFilter = 'ALL';
+  let profileFilter = null;
+
+  /* ================= Utilities ================= */
+  function notify(msg, isErr){
+    const n = document.getElementById('notify');
+    n.textContent = msg;
+    n.className = 'sm-notify show' + (isErr ? ' err' : '');
+    clearTimeout(n._t);
+    n._t = setTimeout(()=> n.classList.remove('show'), 3200);
+  }
+  function openModal(id){ document.getElementById(id).classList.add('show'); }
+  function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+  function toggleCard(id){ document.getElementById(id).classList.toggle('collapsed'); }
+  function fmtNum(n, d){ return (Math.round(n*Math.pow(10,d))/Math.pow(10,d)).toLocaleString(); }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function esc1(s){ return escapeHtml(s).replace(/'/g,"\\'"); }
+
+  function confirmAction(title, body, onYes){
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmBody').textContent = body;
+    const btn = document.getElementById('confirmActionBtn');
+    const clone = btn.cloneNode(true);
+    btn.parentNode.replaceChild(clone, btn);
+    clone.addEventListener('click', ()=>{ closeModal('confirmModal'); onYes(); });
+    openModal('confirmModal');
+  }
+
+  function setDirty(v){
+    isDirty = v;
+    document.getElementById('dirtyFlag').style.display = v ? '' : 'none';
+    document.getElementById('btnSaveProgress').disabled = !activeQueue;
+  }
+
+  function parseSessionFilename(name){
+    const m = name.match(/^(.+?)--ZONE\s*(.+?)--PURLIN QUEUE(?:\s*-\s*(.+))?\.json$/i);
+    if (!m) return {job:'', zone:'', label:''};
+    return {job:m[1], zone:m[2], label:m[3]||''};
+  }
+
+  function normalizeJobFile(f){
+    const parsed = parseSessionFilename(f.name);
+    return {
+      id: f.id,
+      name: f.name,
+      modifiedTime: f.modifiedTime,
+      job: (f.job || parsed.job || '').trim(),
+      zone: (f.zone || parsed.zone || '').trim(),
+      label: parsed.label || '',
+      siteCount: f.siteCount || 0,
+      cassCount: f.cassCount || 0,
+      totalCount: f.totalCount != null ? f.totalCount : (f.siteCount||0)+(f.cassCount||0),
+      doneCount: f.doneCount || 0,
+      metaError: !!f.metaError
+    };
+  }
+
+  async function scriptCall(params){
+    const url = APPS_SCRIPT_URL + '?' + new URLSearchParams(params);
+    const resp = await fetch(url, {redirect:'follow'});
+    const text = await resp.text();
+    return JSON.parse(text);
+  }
+
+  async function scriptSave(filename, jsonStr){
+    const formData = new FormData();
+    formData.append('action','save');
+    formData.append('filename', filename);
+    formData.append('content', jsonStr);
+    await fetch(APPS_SCRIPT_URL, {method:'POST', body:formData, mode:'no-cors'});
+    await new Promise(r => setTimeout(r, 2500));
+    const list = await scriptCall({action:'list'});
+    return (list.files || []).find(f => f.name === filename) || null;
+  }
+
+  /* ================= Sidebar: job list ================= */
+  window.refreshJobs = async function(){
+    const list = document.getElementById('jobList');
+    const empty = document.getElementById('jobListEmpty');
+    empty.style.display = 'none';
+    if (!APPS_SCRIPT_URL){
+      list.innerHTML = '';
+      empty.style.display = '';
+      document.getElementById('jobListEmptyMsg').textContent = 'Set the Apps Script URL first (⚙ icon).';
+      return;
+    }
+    list.innerHTML = '<p class="help-text">Loading…</p>';
+    try {
+      const result = await scriptCall({action:'list', meta:'1'});
+      if (!result.ok){ notify('Error: ' + result.error, true); list.innerHTML=''; return; }
+      jobFiles = (result.files || []).map(normalizeJobFile);
+      renderJobList();
+    } catch(err){
+      list.innerHTML = '';
+      notify('Could not reach the backend: ' + err.message, true);
+    }
+  };
+
+  function withinRange(f){
+    if (dateRange === 'ALL') return true;
+    const days = parseInt(dateRange, 10);
+    const cutoff = Date.now() - days*24*60*60*1000;
+    return new Date(f.modifiedTime).getTime() >= cutoff;
+  }
+
+  function filteredSortedJobs(){
+    const search = document.getElementById('searchBox').value.trim().toLowerCase();
+    const sort = document.getElementById('sortSel').value;
+    let rows = jobFiles.filter(f => {
+      if (!withinRange(f)) return false;
+      if (search){
+        const hay = `${f.job} ${f.zone} ${f.label} ${f.name}`.toLowerCase();
+        if (!hay.includes(search)) return false;
+      }
+      return true;
+    });
+    rows.sort((a,b) => {
+      switch(sort){
+        case 'oldest': return new Date(a.modifiedTime) - new Date(b.modifiedTime);
+        case 'nameAsc': return (a.job||'').localeCompare(b.job||'', undefined, {numeric:true}) || a.name.localeCompare(b.name);
+        case 'mostItems': return b.totalCount - a.totalCount;
+        default: return new Date(b.modifiedTime) - new Date(a.modifiedTime);
+      }
+    });
+    return rows;
+  }
+
+  function jobItemHtml(f){
+    const pct = f.totalCount ? Math.round((f.doneCount/f.totalCount)*100) : 0;
+    const when = new Date(f.modifiedTime).toLocaleString('en-AU');
+    const title = f.job ? `Job ${escapeHtml(f.job)}${f.zone ? ' · Zone '+escapeHtml(f.zone) : ''}` : escapeHtml(f.name);
+    const isActive = f.id === activeFilenameId();
+    return `
+      <div class="job-item${isActive?' active':''}" onclick="loadJob('${f.id}')">
+        <button class="ji-del" title="Delete" onclick="event.stopPropagation();deleteJob('${f.id}','${esc1(f.name)}')">🗑</button>
+        <div class="ji-title">${title}</div>
+        <div class="ji-meta">Updated ${when}${f.metaError ? ' · could not read details' : ''}</div>
+        <div class="ji-progress">
+          <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${pct}%;"></div></div>
+        </div>
+        <div class="ji-pct">${f.doneCount}/${f.totalCount} pcs · ${pct}% done</div>
+      </div>`;
+  }
+
+  // Track the active job by its Drive file id, kept alongside activeFilename (name)
+  let activeFileId = null;
+  function activeFilenameId(){ return activeFileId; }
+
+  function renderJobList(){
+    const rows = filteredSortedJobs();
+    const list = document.getElementById('jobList');
+    const empty = document.getElementById('jobListEmpty');
+    if (!jobFiles.length){
+      list.innerHTML = '';
+      empty.style.display = '';
+      document.getElementById('jobListEmptyMsg').textContent = 'No saved jobs found.';
+      return;
+    }
+    if (!rows.length){
+      list.innerHTML = '';
+      empty.style.display = '';
+      document.getElementById('jobListEmptyMsg').textContent = 'No jobs match the current filters.';
+      return;
+    }
+    empty.style.display = 'none';
+    list.innerHTML = rows.map(jobItemHtml).join('');
+  }
+
+  window.setDateRange = function(r){
+    dateRange = r;
+    document.querySelectorAll('.chip[data-range]').forEach(c => c.classList.toggle('active', c.dataset.range === r));
+    renderJobList();
+  };
+
+  /* ================= Loading a job into the active panel ================= */
+  window.loadJob = function(id){
+    if (id === activeFileId) return;
+    const doLoad = async () => {
+      notify('Loading job…');
+      try {
+        const result = await scriptCall({action:'load', id});
+        if (!result.ok){ notify('Load failed: ' + (result.error||'unknown error'), true); return; }
+        const content = typeof result.content === 'string' ? JSON.parse(result.content) : result.content;
+        activeQueue = content.items || [];
+        activeJob = content.job || '';
+        activeZone = content.zone || '';
+        activeFilename = result.name;
+        activeFileId = id;
+        groupFilter = 'ALL'; typeFilter = 'ALL'; profileFilter = null;
+        setDirty(false);
+        document.getElementById('noJobState').style.display = 'none';
+        document.getElementById('activeJobWrap').style.display = '';
+        updateSubline();
+        renderTypeChips();
+        renderProfileChips();
+        renderAllActive();
+        renderJobList();
+        notify('Job loaded.');
+      } catch(err){
+        notify('Load failed: ' + err.message, true);
+      }
+    };
+    if (isDirty){
+      confirmAction('Discard unsaved changes?', 'You have unsaved progress on the current job. Loading a new job will discard those changes unless you save first.', doLoad);
+    } else {
+      doLoad();
+    }
+  };
+
+  window.deleteJob = function(id, name){
+    confirmAction('Delete job', `Delete "${name}" from Google Drive? This cannot be undone.`, async () => {
+      try {
+        await scriptCall({action:'delete', id});
+        notify('Job deleted.');
+        if (id === activeFileId){
+          activeQueue = null; activeFileId = null; activeFilename = null;
+          setDirty(false);
+          document.getElementById('noJobState').style.display = '';
+          document.getElementById('activeJobWrap').style.display = 'none';
+          updateSubline();
+        }
+        refreshJobs();
+      } catch(err){
+        notify('Delete failed: ' + err.message, true);
+      }
+    });
+  };
+
+  function updateSubline(){
+    document.getElementById('subline').textContent = activeQueue
+      ? `Job ${activeJob || '—'} · Zone ${activeZone || '—'}`
+      : 'No job loaded';
+  }
+
+  /* ================= Active job: stats, progress, table ================= */
+  function computeStats(){
+    const q = activeQueue || [];
+    const pending = q.filter(i => i.status !== 'done');
+    const site = q.filter(i => i.group === 'SITE');
+    const cass = q.filter(i => i.group === 'CASSETTE');
+    const totalLenM = q.reduce((s,i)=> s + (i.qty * i.length)/1000, 0);
+    const totalWeightKg = q.reduce((s,i)=> s + (i.weight||0), 0);
+    const longestLength = q.reduce((m,i)=> Math.max(m, i.length||0), 0);
+    const distinctSizes = new Set(q.map(i=>i.size).filter(Boolean)).size;
+    return {
+      total: q.length, pending: pending.length, done: q.length - pending.length,
+      site: site.length, cass: cass.length, totalLenM, totalWeightKg, longestLength, distinctSizes
+    };
+  }
+
+  function renderStats(){
+    const s = computeStats();
+    const grid = document.getElementById('statGrid');
+    grid.innerHTML = [
+      {n:s.total, l:'Total items'},
+      {n:s.pending, l:'Left to do'},
+      {n:s.done, l:'Completed'},
+      {n:s.site, l:'Site items'},
+      {n:s.cass, l:'Cassette/Factory items'},
+      {n:fmtNum(s.totalLenM,1)+' m', l:'Total length'},
+      {n:fmtNum(s.totalWeightKg,0)+' kg', l:'Total weight'},
+      {n:fmtNum(s.longestLength,0)+' mm', l:'Longest length'},
+      {n:s.distinctSizes, l:'Different sizes'}
+    ].map(x => `<div class="stat"><div class="n">${x.n}</div><div class="l">${x.l}</div></div>`).join('');
+  }
+
+  function renderProgress(){
+    const el = document.getElementById('progressList');
+    const q = activeQueue || [];
+    if (!q.length){ el.innerHTML = '<p class="help-text">No items loaded.</p>'; return; }
+
+    function summarize(items){
+      const done = items.filter(i => i.status === 'done');
+      const totalQty = items.reduce((s,i)=>s+i.qty,0);
+      const doneQty = done.reduce((s,i)=>s+i.qty,0);
+      const totalLen = items.reduce((s,i)=>s+(i.qty*i.length)/1000,0);
+      const doneLen = done.reduce((s,i)=>s+(i.qty*i.length)/1000,0);
+      const pct = totalQty ? Math.round((doneQty/totalQty)*100) : 0;
+      return {totalQty, doneQty, totalLen, doneLen, pct, lines: items.length, doneLines: done.length};
+    }
+    function row(label, sub, s, extraClass){
+      return `
+        <div class="progress-row ${extraClass||''}">
+          <div class="pr-label">${label}<div class="pr-sub">${sub}</div></div>
+          <div class="pr-bar-wrap">
+            <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${s.pct}%;"></div></div>
+          </div>
+          <div class="pr-nums">${s.doneQty}/${s.totalQty} pcs · ${fmtNum(s.doneLen,1)}/${fmtNum(s.totalLen,1)} m</div>
+        </div>`;
+    }
+    const overall = summarize(q);
+    let html = row('All profiles', `${overall.doneLines}/${overall.lines} lines · ${overall.pct}% done`, overall, 'pr-total');
+    const keys = [...new Set(q.map(profileKey))];
+    keys.sort((a,b) => {
+      const ia = PROFILE_HINTS.findIndex(h => normProfile(h)===normProfile(a));
+      const ib = PROFILE_HINTS.findIndex(h => normProfile(h)===normProfile(b));
+      return (ia===-1?999:ia) - (ib===-1?999:ib) || a.localeCompare(b);
+    });
+    html += keys.map(k => {
+      const items = q.filter(i => profileKey(i) === k);
+      const s = summarize(items);
+      return row(escapeHtml(k), `${s.doneLines}/${s.lines} lines`, s);
+    }).join('');
+    el.innerHTML = html;
+  }
+
+  function renderTypeChips(){
+    const q = activeQueue || [];
+    const materials = [...new Set(q.map(i => i.material).filter(Boolean))];
+    materials.sort((a,b) => {
+      const rank = m => /purlin/i.test(m) ? 0 : /siderail/i.test(m) ? 1 : 2;
+      return rank(a) - rank(b) || a.localeCompare(b);
+    });
+    const el = document.getElementById('typeChips');
+    const chips = [
+      `<button class="chip${typeFilter==='ALL'?' active':''}" onclick="setTypeFilter('ALL')">All types</button>`
+    ].concat(materials.map(m => {
+      const count = q.filter(i => i.material === m).length;
+      const val = escapeHtml(m).replace(/'/g,"\\'");
+      return `<button class="chip${typeFilter===m?' active':''}" onclick="setTypeFilter('${val}')">${escapeHtml(materialLabel(m))} (${count})</button>`;
+    }));
+    el.innerHTML = chips.join('');
+  }
+
+  function renderProfileChips(){
+    const q = activeQueue || [];
+    const inScope = q.filter(i => typeFilter==='ALL' || i.material === typeFilter);
+    const keys = [...new Set(inScope.map(profileKey))];
+    keys.sort((a,b) => {
+      const ia = PROFILE_HINTS.findIndex(h => normProfile(h)===normProfile(a));
+      const ib = PROFILE_HINTS.findIndex(h => normProfile(h)===normProfile(b));
+      return (ia===-1?999:ia) - (ib===-1?999:ib) || a.localeCompare(b);
+    });
+    const el = document.getElementById('profileChips');
+    if (!keys.length){ el.innerHTML = ''; return; }
+    const chips = [`<button class="chip${!profileFilter?' active':''}" onclick="setProfileFilter(null)">All profiles</button>`]
+      .concat(keys.map(k => {
+        const count = inScope.filter(i => profileKey(i)===k).length;
+        const val = escapeHtml(k).replace(/'/g,"\\'");
+        return `<button class="chip${profileFilter===k?' active':''}" onclick="setProfileFilter('${val}')">${escapeHtml(k)} (${count})</button>`;
+      }));
+    el.innerHTML = chips.join('');
+  }
+
+  window.setTypeFilter = function(m){
+    typeFilter = m; profileFilter = null;
+    renderTypeChips(); renderProfileChips(); renderQueueTable();
+  };
+  window.setProfileFilter = function(k){
+    profileFilter = (profileFilter === k) ? null : k;
+    renderProfileChips(); renderQueueTable();
+  };
+  window.setGroupFilter = function(g){
+    groupFilter = g;
+    document.querySelectorAll('.chip[data-group]').forEach(c => c.classList.toggle('active', c.dataset.group === g));
+    renderQueueTable();
+  };
+
+  function filteredQueue(){
+    const q = activeQueue || [];
+    const search = document.getElementById('markSearch').value.trim().toLowerCase();
+    return q
+      .filter(i => groupFilter === 'ALL' || i.group === groupFilter)
+      .filter(i => typeFilter === 'ALL' || i.material === typeFilter)
+      .filter(i => !profileFilter || profileKey(i) === profileFilter)
+      .filter(i => !search || i.mark.toLowerCase().includes(search))
+      .sort((a,b) => a.order - b.order);
+  }
+
+  window.renderQueueTable = function(){
+    const rows = filteredQueue();
+    const body = document.getElementById('queueBody');
+    document.getElementById('queueEmptyState').style.display = rows.length ? 'none' : '';
+    const selectAll = document.getElementById('selectAllCheckbox');
+    selectAll.checked = rows.length > 0 && rows.every(r => r.status === 'done');
+    selectAll.disabled = rows.length === 0;
+
+    body.innerHTML = rows.map((it, idx) => `
+      <tr data-id="${it.id}" class="${it.status==='done' ? 'done':''}">
+        <td class="order-num">${idx+1}</td>
+        <td class="mark">${escapeHtml(it.mark)}</td>
+        <td><span class="tag ${it.group==='SITE'?'tag-site':'tag-cassette'}">${it.group==='SITE'?'Site':'Cassette'}</span></td>
+        <td>${escapeHtml(it.material)}</td>
+        <td>${escapeHtml(it.size)}</td>
+        <td class="mono">${it.gauge ? it.gauge+' BMT' : '—'}</td>
+        <td class="mono">${it.qty}</td>
+        <td class="mono">${fmtNum(it.length,0)} mm</td>
+        <td><input type="checkbox" ${it.status==='done'?'checked':''} onclick="event.stopPropagation();toggleDone('${it.id}')"></td>
+      </tr>
+    `).join('');
+
+    body.querySelectorAll('tr[data-id]').forEach(row => {
+      row.addEventListener('click', () => {
+        if (row.classList.contains('done')) return; // tapping a done row does nothing; use checkbox to un-tick
+        toggleDone(row.dataset.id);
+      });
+    });
+  };
+
+  function renderAllActive(){
+    renderStats();
+    renderProgress();
+    renderQueueTable();
+  }
+
+  window.toggleDone = function(id){
+    const it = (activeQueue||[]).find(i => i.id === id);
+    if (!it) return;
+    it.status = it.status === 'done' ? 'pending' : 'done';
+    setDirty(true);
+    renderAllActive();
+  };
+
+  window.toggleAllDone = function(checked){
+    filteredQueue().forEach(it => { it.status = checked ? 'done' : 'pending'; });
+    setDirty(true);
+    renderAllActive();
+  };
+
+  window.clearCompleted = function(){
+    const q = activeQueue || [];
+    const doneCount = q.filter(i=>i.status==='done').length;
+    if (!doneCount){ notify('No completed items to clear.'); return; }
+    confirmAction('Clear completed', `Remove ${doneCount} completed item(s) from the queue?`, () => {
+      activeQueue = q.filter(i => i.status !== 'done');
+      setDirty(true);
+      renderAllActive();
+    });
+  };
+
+  window.clearQueue = function(){
+    const q = activeQueue || [];
+    if (!q.length){ notify('Queue is already empty.'); return; }
+    confirmAction('Clear queue', `Remove all ${q.length} item(s) from the queue? This cannot be undone.`, () => {
+      activeQueue = [];
+      setDirty(true);
+      renderAllActive();
+      notify('Queue cleared.');
+    });
+  };
+
+  /* ================= Save progress ================= */
+  window.saveProgress = async function(){
+    if (!APPS_SCRIPT_URL){ notify('Set the Apps Script URL first (⚙ icon).', true); openModal('settingsModal'); return; }
+    if (!activeQueue || !activeFilename){ notify('No job loaded.', true); return; }
+    const payload = {
+      job: activeJob,
+      zone: activeZone,
+      savedAt: new Date().toISOString(),
+      items: activeQueue
+    };
+    notify('Saving progress…');
+    try {
+      const result = await scriptSave(activeFilename, JSON.stringify(payload));
+      if (result){
+        setDirty(false);
+        notify('Progress saved.');
+        refreshJobs();
+      } else {
+        notify('Save sent, but could not confirm — check the job list.', true);
+      }
+    } catch(err){
+      notify('Save failed: ' + err.message, true);
+    }
+  };
+
+  /* ================= Settings ================= */
+  window.saveScriptUrl = function(){
+    APPS_SCRIPT_URL = document.getElementById('scriptUrlInput').value.trim();
+    localStorage.setItem(LS_URL_KEY, APPS_SCRIPT_URL);
+    notify('Backend URL saved on this device.');
+    closeModal('settingsModal');
+    refreshJobs();
+  };
+
+  document.getElementById('btnSettings').addEventListener('click', () => {
+    document.getElementById('scriptUrlInput').value = APPS_SCRIPT_URL;
+    openModal('settingsModal');
+  });
+
+  document.querySelectorAll('.modal-backdrop').forEach(m => {
+    m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('show'); });
+  });
+
+  window.toggleCard = toggleCard;
+  window.closeModal = closeModal;
+
+  /* ================= Warn on tab close with unsaved changes ================= */
+  window.addEventListener('beforeunload', (e) => {
+    if (isDirty){ e.preventDefault(); e.returnValue = ''; }
+  });
+
+  /* ================= Init ================= */
+  setDirty(false);
+  window.addEventListener('load', refreshJobs);
+
+})();
+</script>
+</body>
+</html>
