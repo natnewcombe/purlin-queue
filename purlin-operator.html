@@ -257,6 +257,70 @@
   .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
   .field label { font-size: 11px; color: var(--tx3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
   .field input { font-family: inherit; font-size: 13px; padding: 8px 10px; border: 0.5px solid var(--bdr2); border-radius: var(--r); background: var(--bg2); color: var(--tx); }
+
+  /* ---------- Print-labels row control ---------- */
+  .print-qty-cell { display: flex; align-items: center; gap: 6px; }
+  .print-qty-input {
+    width: 48px; padding: 5px 7px; border: 0.5px solid var(--bdr2); border-radius: var(--r);
+    background: var(--bg2); color: var(--tx); font-family: inherit; font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .print-qty-input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+
+  /* ---------- Packs list ---------- */
+  .pack-item {
+    display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px;
+    border: 0.5px solid var(--bdr); border-radius: var(--r); margin-bottom: 8px; background: var(--bg2);
+  }
+  .pack-item .pk-main { flex: 1; }
+  .pack-item .pk-title { font-size: 13px; font-weight: 700; }
+  .pack-item .pk-meta { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+  .pack-item .pk-contents { font-size: 12px; color: var(--tx2); margin-top: 6px; line-height: 1.5; }
+  .pack-item .pk-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+  .pack-avail-row, .pack-staging-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 0;
+    border-bottom: 0.5px solid var(--bdr);
+  }
+  .pack-avail-row:last-child, .pack-staging-row:last-child { border-bottom: none; }
+  .pack-avail-row .pa-main, .pack-staging-row .ps-main { flex: 1; font-size: 13px; }
+  .pack-avail-row .pa-sub { font-size: 11px; color: var(--tx3); }
+  .pack-qty-input {
+    width: 56px; padding: 6px 8px; border: 0.5px solid var(--bdr2); border-radius: var(--r);
+    background: var(--bg2); color: var(--tx); font-family: inherit; font-size: 13px;
+  }
+
+  /* ---------- Print label sheets (hidden until printing) ---------- */
+  #labelPrintArea { display: none; }
+  @media print {
+    body.printing-labels > *:not(#labelPrintArea) { display: none !important; }
+    body.printing-labels #labelPrintArea { display: block !important; }
+    @page { size: 150mm 100mm; margin: 0; }
+  }
+  .label-page {
+    width: 150mm; height: 100mm; page-break-after: always;
+    display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr);
+  }
+  .label-page:last-child { page-break-after: auto; }
+  .label-cell {
+    box-sizing: border-box; padding: 3mm 2.5mm; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: center;
+    border-right: 0.5pt dashed #999; border-bottom: 0.5pt dashed #999;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #000;
+  }
+  .label-cell:nth-child(4n) { border-right: none; }
+  .label-cell:nth-child(n+5) { border-bottom: none; }
+  .label-cell .lc-job { font-size: 6.5pt; color: #333; }
+  .label-cell .lc-mark { font-size: 15pt; font-weight: 800; line-height: 1.15; margin: 1mm 0; }
+  .label-cell .lc-size { font-size: 8.5pt; font-weight: 600; }
+  .label-cell .lc-length { font-size: 8.5pt; }
+
+  .label-page.pack-page { grid-template-columns: 1fr; grid-template-rows: auto; padding: 6mm; box-sizing: border-box; }
+  .pack-label-job { font-size: 9pt; color: #333; }
+  .pack-label-title { font-size: 20pt; font-weight: 800; margin: 2mm 0 4mm; }
+  .pack-label-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  .pack-label-table th, .pack-label-table td { text-align: left; padding: 1mm 2mm; border-bottom: 0.5pt solid #999; }
+  .pack-label-footer { margin-top: 4mm; font-size: 9pt; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -392,6 +456,7 @@
                 <th class="th-done" style="width:160px;">
                   <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllDone(this.checked)" title="Mark all visible items fully done"> Done
                 </th>
+                <th style="width:150px;">Print labels</th>
               </tr>
             </thead>
             <tbody id="queueBody"></tbody>
@@ -403,11 +468,46 @@
           </div>
         </div>
       </div>
+
+      <div class="card" id="packsCard">
+        <div class="card-head" onclick="toggleCard('packsCard')">
+          <h2>Packs</h2>
+          <span class="chev">▾</span>
+        </div>
+        <div class="card-body">
+          <button class="btn-primary btn-sm" style="margin-bottom:12px;" onclick="openNewPackModal()">New Pack</button>
+          <div id="packsList"></div>
+        </div>
+      </div>
     </div>
 
   </section>
 
 </div>
+
+<!-- New Pack modal -->
+<div class="modal-backdrop" id="packModal">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-head">
+      <h3>New Pack</h3>
+      <button class="icon-btn" onclick="closeModal('packModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="help-text">Only pieces already marked done (and not yet in another pack) can be added.</p>
+      <div id="packAvailableList" style="margin-bottom:16px;"></div>
+      <div id="packEmptyAvailable" class="help-text" style="display:none;">Nothing available to pack yet — mark some pieces done first.</div>
+      <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.3px;color:var(--tx3);margin:16px 0 8px;">In this pack</h4>
+      <div id="packStagingList"><p class="help-text">Nothing added yet.</p></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost btn-sm" onclick="closeModal('packModal')">Cancel</button>
+      <button class="btn-primary btn-sm" id="btnFinishPack" onclick="finishPack()" disabled>Finish Pack &amp; Print Label</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden print area used for label sheets; only shown via print CSS -->
+<div id="labelPrintArea"></div>
 
 <!-- Confirm modal -->
 <div class="modal-backdrop" id="confirmModal">
@@ -475,6 +575,8 @@
   let activeZone = '';
   let activeFilename = null;
   let activeCompletedAt = null;  // set once the loaded job reaches 100% done, cleared if reopened
+  let activePacks = [];           // packs already built for this job
+  let activePackCounter = 0;      // sequential pack numbering, never reused
   let isDirty = false;
 
   let groupFilter = 'ALL';
@@ -576,6 +678,8 @@
       it.doneQty = it.status === 'done' ? it.qty : 0;
     }
     it.doneQty = Math.max(0, Math.min(it.qty, it.doneQty));
+    if (typeof it.packedQty !== 'number') it.packedQty = 0;
+    it.packedQty = Math.max(0, Math.min(it.doneQty, it.packedQty));
     return it;
   }
 
@@ -789,6 +893,8 @@
         activeFilename = result.name;
         activeFileId = id;
         activeCompletedAt = content.completedAt || null;
+        activePacks = content.packs || [];
+        activePackCounter = content.packCounter || 0;
         groupFilter = 'ALL'; typeFilter = 'ALL'; profileFilter = null;
         setDirty(false);
         document.getElementById('noJobState').style.display = 'none';
@@ -797,6 +903,7 @@
         renderTypeChips();
         renderProfileChips();
         renderAllActive();
+        renderPacksList();
         renderJobList();
         notify('Job loaded.');
       } catch(err){
@@ -817,6 +924,7 @@
         notify('Job deleted.');
         if (id === activeFileId){
           activeQueue = null; activeFileId = null; activeFilename = null; activeCompletedAt = null;
+          activePacks = []; activePackCounter = 0;
           setDirty(false);
           document.getElementById('noJobState').style.display = '';
           document.getElementById('activeJobWrap').style.display = 'none';
@@ -988,6 +1096,13 @@
     body.innerHTML = rows.map((it, idx) => {
       const done = isLineDone(it);
       const partial = !done && it.doneQty > 0;
+      const remaining = Math.max(0, it.qty - it.doneQty);
+      const printCell = remaining > 0
+        ? `<div class="print-qty-cell">
+             <input type="number" class="print-qty-input" min="1" max="${remaining}" value="${remaining}" id="printQty-${it.id}" onclick="event.stopPropagation();">
+             <button class="btn-ghost btn-sm" onclick="event.stopPropagation();printAndMarkDone('${it.id}')">🖨 Print</button>
+           </div>`
+        : `<span class="help-text" style="margin:0;">All printed</span>`;
       return `
       <tr data-id="${it.id}" class="${done ? 'done':''}${partial ? ' partial':''}">
         <td class="order-num">${idx+1}</td>
@@ -1006,6 +1121,7 @@
             <button class="icon-btn" title="Mark all ${it.qty} pcs done" onclick="event.stopPropagation();setDoneQty('${it.id}', ${it.qty})">✓</button>
           </div>
         </td>
+        <td>${printCell}</td>
       </tr>
     `;
     }).join('');
@@ -1024,8 +1140,57 @@
     if (isNaN(v)) v = 0;
     v = Math.max(0, Math.min(it.qty, v));
     it.doneQty = v;
+    it.packedQty = Math.min(it.packedQty, it.doneQty);
     setDirty(true);
     renderAllActive();
+  };
+
+  /* ================= Label printing ================= */
+  function printLabelSheet(innerHtml){
+    const area = document.getElementById('labelPrintArea');
+    area.innerHTML = innerHtml;
+    document.body.classList.add('printing-labels');
+    window.print();
+  }
+
+  window.addEventListener('afterprint', () => {
+    document.body.classList.remove('printing-labels');
+    document.getElementById('labelPrintArea').innerHTML = '';
+  });
+
+  function buildIndividualLabelPages(it, qty){
+    const cell = () => `
+      <div class="label-cell">
+        <div class="lc-job">Job ${escapeHtml(activeJob)} · Zone ${escapeHtml(activeZone)}</div>
+        <div class="lc-mark">${escapeHtml(it.mark)}</div>
+        <div class="lc-size">${escapeHtml(it.size)}${it.gauge ? ' x '+escapeHtml(it.gauge)+' BMT' : ''}</div>
+        <div class="lc-length">${fmtNum(it.length,0)} mm</div>
+      </div>`;
+    const cells = [];
+    for (let i=0; i<qty; i++) cells.push(cell());
+    let pages = '';
+    for (let i=0; i<cells.length; i+=8){
+      pages += `<div class="label-page">${cells.slice(i, i+8).join('')}</div>`;
+    }
+    return pages;
+  }
+
+  window.printAndMarkDone = function(id){
+    const it = (activeQueue||[]).find(i => i.id === id);
+    if (!it) return;
+    const remaining = Math.max(0, it.qty - it.doneQty);
+    if (remaining <= 0){ notify('This line is already fully done.'); return; }
+    const input = document.getElementById(`printQty-${id}`);
+    let qty = parseInt(input ? input.value : remaining, 10);
+    if (isNaN(qty) || qty < 1) qty = 1;
+    qty = Math.min(remaining, qty);
+
+    const pages = buildIndividualLabelPages(it, qty);
+    it.doneQty += qty;
+    setDirty(true);
+    renderAllActive();
+    printLabelSheet(pages);
+    notify(`Printed ${qty} label${qty===1?'':'s'} for ${it.mark} and marked done.`);
   };
 
   window.toggleAllDone = function(checked){
@@ -1056,6 +1221,179 @@
     });
   };
 
+  /* ================= Packs ================= */
+  let packStaging = []; // [{itemId, mark, size, gauge, length, qty}] while building a new pack
+
+  function availableQty(it){ return Math.max(0, it.doneQty - it.packedQty); }
+
+  window.openNewPackModal = function(){
+    packStaging = [];
+    renderPackAvailableList();
+    renderPackStagingList();
+    openModal('packModal');
+  };
+
+  function renderPackAvailableList(){
+    const el = document.getElementById('packAvailableList');
+    const emptyEl = document.getElementById('packEmptyAvailable');
+    const q = activeQueue || [];
+    const rows = q.filter(it => availableQty(it) > 0);
+    if (!rows.length){
+      el.innerHTML = '';
+      emptyEl.style.display = '';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    el.innerHTML = rows.map(it => {
+      const avail = availableQty(it);
+      return `
+        <div class="pack-avail-row">
+          <div class="pa-main">
+            ${escapeHtml(it.mark)}
+            <div class="pa-sub">${escapeHtml(it.size)}${it.gauge ? ' x '+escapeHtml(it.gauge)+' BMT' : ''} · ${fmtNum(it.length,0)} mm · ${avail} available</div>
+          </div>
+          <input type="number" class="pack-qty-input" min="1" max="${avail}" value="${avail}" id="packAdd-${it.id}">
+          <button class="btn-ghost btn-sm" onclick="addToPackStaging('${it.id}')">Add</button>
+        </div>`;
+    }).join('');
+  }
+
+  window.addToPackStaging = function(itemId){
+    const it = (activeQueue||[]).find(i => i.id === itemId);
+    if (!it) return;
+    const avail = availableQty(it);
+    const input = document.getElementById(`packAdd-${itemId}`);
+    let qty = parseInt(input ? input.value : avail, 10);
+    if (isNaN(qty) || qty < 1) qty = 1;
+    qty = Math.min(avail, qty);
+    if (qty <= 0) return;
+
+    const existing = packStaging.find(s => s.itemId === itemId);
+    if (existing){
+      existing.qty = Math.min(existing.qty + qty, existing.qty + avail);
+    } else {
+      packStaging.push({ itemId, mark: it.mark, size: it.size, gauge: it.gauge, length: it.length, qty });
+    }
+    renderPackAvailableList();
+    renderPackStagingList();
+  };
+
+  window.removeFromPackStaging = function(itemId){
+    packStaging = packStaging.filter(s => s.itemId !== itemId);
+    renderPackAvailableList();
+    renderPackStagingList();
+  };
+
+  function renderPackStagingList(){
+    const el = document.getElementById('packStagingList');
+    const btn = document.getElementById('btnFinishPack');
+    btn.disabled = packStaging.length === 0;
+    if (!packStaging.length){
+      el.innerHTML = '<p class="help-text">Nothing added yet.</p>';
+      return;
+    }
+    el.innerHTML = packStaging.map(s => `
+      <div class="pack-staging-row">
+        <div class="ps-main">${escapeHtml(s.mark)} <span style="color:var(--tx3);">× ${s.qty}</span></div>
+        <button class="icon-btn" title="Remove" onclick="removeFromPackStaging('${s.itemId}')">✕</button>
+      </div>`).join('');
+  }
+
+  window.finishPack = function(){
+    if (!packStaging.length) return;
+    activePackCounter += 1;
+    const pack = {
+      number: activePackCounter,
+      createdAt: new Date().toISOString(),
+      contents: packStaging.map(s => ({...s}))
+    };
+    packStaging.forEach(s => {
+      const it = (activeQueue||[]).find(i => i.id === s.itemId);
+      if (it) it.packedQty += s.qty;
+    });
+    activePacks.push(pack);
+    setDirty(true);
+    renderAllActive();
+    renderPacksList();
+    closeModal('packModal');
+    printLabelSheet(buildPackLabelPage(pack));
+    notify(`Pack ${pack.number} created and label printed.`);
+  };
+
+  window.deletePack = function(number){
+    const pack = activePacks.find(p => p.number === number);
+    if (!pack) return;
+    confirmAction('Delete pack', `Delete Pack ${number}? Its pieces will become available to pack again.`, () => {
+      pack.contents.forEach(c => {
+        const it = (activeQueue||[]).find(i => i.id === c.itemId);
+        if (it) it.packedQty = Math.max(0, it.packedQty - c.qty);
+      });
+      activePacks = activePacks.filter(p => p.number !== number);
+      setDirty(true);
+      renderAllActive();
+      renderPacksList();
+    });
+  };
+
+  window.reprintPack = function(number){
+    const pack = activePacks.find(p => p.number === number);
+    if (!pack) return;
+    printLabelSheet(buildPackLabelPage(pack));
+  };
+
+  function packWeight(pack){
+    return pack.contents.reduce((sum, c) => {
+      const it = (activeQueue||[]).find(i => i.id === c.itemId);
+      const perPiece = it && it.qty ? (it.weight||0)/it.qty : 0;
+      return sum + perPiece * c.qty;
+    }, 0);
+  }
+
+  function renderPacksList(){
+    const el = document.getElementById('packsList');
+    if (!activePacks.length){
+      el.innerHTML = '<p class="help-text">No packs built yet.</p>';
+      return;
+    }
+    const sorted = [...activePacks].sort((a,b) => b.number - a.number);
+    el.innerHTML = sorted.map(pack => {
+      const totalPcs = pack.contents.reduce((s,c)=>s+c.qty,0);
+      const contentsStr = pack.contents.map(c => `${escapeHtml(c.mark)} × ${c.qty}`).join(', ');
+      return `
+        <div class="pack-item">
+          <div class="pk-main">
+            <div class="pk-title">Pack ${pack.number}</div>
+            <div class="pk-meta">${new Date(pack.createdAt).toLocaleString('en-AU')} · ${totalPcs} pcs · ${fmtNum(packWeight(pack),0)} kg</div>
+            <div class="pk-contents">${contentsStr}</div>
+          </div>
+          <div class="pk-actions">
+            <button class="btn-ghost btn-sm" onclick="reprintPack(${pack.number})">Print</button>
+            <button class="icon-btn" title="Delete" onclick="deletePack(${pack.number})">🗑</button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function buildPackLabelPage(pack){
+    const rows = pack.contents.map(c => `
+      <tr>
+        <td>${escapeHtml(c.mark)}</td>
+        <td>${escapeHtml(c.size)}${c.gauge ? ' x '+escapeHtml(c.gauge)+' BMT' : ''}</td>
+        <td style="text-align:right;">${c.qty}</td>
+      </tr>`).join('');
+    const totalPcs = pack.contents.reduce((s,c)=>s+c.qty,0);
+    return `
+      <div class="label-page pack-page">
+        <div class="pack-label-job">Job ${escapeHtml(activeJob)} · Zone ${escapeHtml(activeZone)}</div>
+        <div class="pack-label-title">PACK ${pack.number}</div>
+        <table class="pack-label-table">
+          <thead><tr><th>Mark</th><th>Size</th><th style="text-align:right;">Qty</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="pack-label-footer">Total: ${totalPcs} pcs · ${fmtNum(packWeight(pack),0)} kg</div>
+      </div>`;
+  }
+
   /* ================= Save progress ================= */
   window.saveProgress = async function(){
     if (!APPS_SCRIPT_URL){ notify('Set the Apps Script URL first (⚙ icon).', true); openModal('settingsModal'); return; }
@@ -1076,7 +1414,9 @@
       zone: activeZone,
       savedAt: new Date().toISOString(),
       completedAt: newCompletedAt,
-      items: activeQueue
+      items: activeQueue,
+      packs: activePacks,
+      packCounter: activePackCounter
     };
     notify('Saving progress…');
     try {
