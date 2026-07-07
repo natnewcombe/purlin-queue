@@ -304,16 +304,13 @@
   .label-page:last-child { page-break-after: auto; }
   .label-cell {
     box-sizing: border-box; padding: 3mm 2.5mm; overflow: hidden;
-    display: flex; flex-direction: column; justify-content: center;
+    display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
     border-right: 0.5pt dashed #999; border-bottom: 0.5pt dashed #999;
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #000;
   }
   .label-cell:nth-child(4n) { border-right: none; }
   .label-cell:nth-child(n+5) { border-bottom: none; }
-  .label-cell .lc-job { font-size: 6.5pt; color: #333; }
-  .label-cell .lc-mark { font-size: 15pt; font-weight: 800; line-height: 1.15; margin: 1mm 0; }
-  .label-cell .lc-size { font-size: 8.5pt; font-weight: 600; }
-  .label-cell .lc-length { font-size: 8.5pt; }
+  .label-cell .lc-line { font-size: 15pt; font-weight: 800; line-height: 1.35; }
 
   .label-page.pack-page { grid-template-columns: 1fr; grid-template-rows: auto; padding: 6mm; box-sizing: border-box; }
   .pack-label-job { font-size: 9pt; color: #333; }
@@ -465,6 +462,21 @@
           <div class="empty-state" id="queueEmptyState" style="display:none;">
             <div class="big">📭</div>
             No items match the current filters.
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="labelSheetCard">
+        <div class="card-head" onclick="toggleCard('labelSheetCard')">
+          <h2>Label Sheet — <span id="labelSheetCount">0</span>/8</h2>
+          <span class="chev">▾</span>
+        </div>
+        <div class="card-body">
+          <p class="help-text">Add pieces from the Run Queue below to build a sheet of up to 8 labels, mixing marks freely, then print them all at once.</p>
+          <div id="labelSheetList"></div>
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="btn-ghost btn-sm" onclick="clearLabelSheet()">Clear</button>
+            <button class="btn-primary btn-sm" id="btnPrintLabelSheet" onclick="printLabelSheetBatch()" disabled>Print Sheet</button>
           </div>
         </div>
       </div>
@@ -895,6 +907,7 @@
         activeCompletedAt = content.completedAt || null;
         activePacks = content.packs || [];
         activePackCounter = content.packCounter || 0;
+        labelSheetStaging = [];
         groupFilter = 'ALL'; typeFilter = 'ALL'; profileFilter = null;
         setDirty(false);
         document.getElementById('noJobState').style.display = 'none';
@@ -904,6 +917,7 @@
         renderProfileChips();
         renderAllActive();
         renderPacksList();
+        renderLabelSheet();
         renderJobList();
         notify('Job loaded.');
       } catch(err){
@@ -925,6 +939,7 @@
         if (id === activeFileId){
           activeQueue = null; activeFileId = null; activeFilename = null; activeCompletedAt = null;
           activePacks = []; activePackCounter = 0;
+          labelSheetStaging = [];
           setDirty(false);
           document.getElementById('noJobState').style.display = '';
           document.getElementById('activeJobWrap').style.display = 'none';
@@ -1097,12 +1112,22 @@
       const done = isLineDone(it);
       const partial = !done && it.doneQty > 0;
       const remaining = Math.max(0, it.qty - it.doneQty);
-      const printCell = remaining > 0
-        ? `<div class="print-qty-cell">
-             <input type="number" class="print-qty-input" min="1" max="${remaining}" value="${remaining}" id="printQty-${it.id}" onclick="event.stopPropagation();">
-             <button class="btn-ghost btn-sm" onclick="event.stopPropagation();printAndMarkDone('${it.id}')">🖨 Print</button>
-           </div>`
-        : `<span class="help-text" style="margin:0;">All printed</span>`;
+      const staged = stagedQtyForItem(it.id);
+      const capLeft = 8 - labelSheetTotal();
+      const maxAddable = Math.min(remaining - staged, capLeft);
+      let printCell;
+      if (remaining <= 0){
+        printCell = `<span class="help-text" style="margin:0;">All printed</span>`;
+      } else if (maxAddable <= 0){
+        printCell = capLeft <= 0
+          ? `<span class="help-text" style="margin:0;">Sheet full (8/8)</span>`
+          : `<span class="help-text" style="margin:0;">All staged</span>`;
+      } else {
+        printCell = `<div class="print-qty-cell">
+             <input type="number" class="print-qty-input" min="0" max="${maxAddable}" value="0" id="printQty-${it.id}" onclick="event.stopPropagation();">
+             <button class="btn-ghost btn-sm" onclick="event.stopPropagation();addToLabelSheet('${it.id}')">+ Add</button>
+           </div>`;
+      }
       return `
       <tr data-id="${it.id}" class="${done ? 'done':''}${partial ? ' partial':''}">
         <td class="order-num">${idx+1}</td>
@@ -1141,6 +1166,13 @@
     v = Math.max(0, Math.min(it.qty, v));
     it.doneQty = v;
     it.packedQty = Math.min(it.packedQty, it.doneQty);
+    const remaining = it.qty - it.doneQty;
+    const stagedEntry = labelSheetStaging.find(s => s.itemId === id);
+    if (stagedEntry && stagedEntry.qty > remaining){
+      if (remaining <= 0) labelSheetStaging = labelSheetStaging.filter(s => s.itemId !== id);
+      else stagedEntry.qty = remaining;
+      renderLabelSheet();
+    }
     setDirty(true);
     renderAllActive();
   };
@@ -1158,16 +1190,18 @@
     document.getElementById('labelPrintArea').innerHTML = '';
   });
 
-  function buildIndividualLabelPages(it, qty){
-    const cell = () => `
-      <div class="label-cell">
-        <div class="lc-job">Job ${escapeHtml(activeJob)} · Zone ${escapeHtml(activeZone)}</div>
-        <div class="lc-mark">${escapeHtml(it.mark)}</div>
-        <div class="lc-size">${escapeHtml(it.size)}${it.gauge ? ' x '+escapeHtml(it.gauge)+' BMT' : ''}</div>
-        <div class="lc-length">${fmtNum(it.length,0)} mm</div>
-      </div>`;
+  function buildLabelCellsFromEntries(entries){
     const cells = [];
-    for (let i=0; i<qty; i++) cells.push(cell());
+    entries.forEach(en => {
+      for (let i=0; i<en.qty; i++){
+        cells.push(`
+          <div class="label-cell">
+            <div class="lc-line">Job ${escapeHtml(activeJob)}</div>
+            <div class="lc-line">Zone ${escapeHtml(activeZone)}</div>
+            <div class="lc-line">${escapeHtml(en.mark)}</div>
+          </div>`);
+      }
+    });
     let pages = '';
     for (let i=0; i<cells.length; i+=8){
       pages += `<div class="label-page">${cells.slice(i, i+8).join('')}</div>`;
@@ -1175,22 +1209,82 @@
     return pages;
   }
 
-  window.printAndMarkDone = function(id){
-    const it = (activeQueue||[]).find(i => i.id === id);
+  /* ================= Label sheet staging (up to 8 mixed labels per sheet) ================= */
+  let labelSheetStaging = []; // [{itemId, mark, qty}]
+
+  function labelSheetTotal(){ return labelSheetStaging.reduce((s,e)=>s+e.qty, 0); }
+  function stagedQtyForItem(itemId){ const e = labelSheetStaging.find(s=>s.itemId===itemId); return e ? e.qty : 0; }
+
+  window.addToLabelSheet = function(itemId){
+    const it = (activeQueue||[]).find(i => i.id === itemId);
     if (!it) return;
     const remaining = Math.max(0, it.qty - it.doneQty);
-    if (remaining <= 0){ notify('This line is already fully done.'); return; }
-    const input = document.getElementById(`printQty-${id}`);
-    let qty = parseInt(input ? input.value : remaining, 10);
-    if (isNaN(qty) || qty < 1) qty = 1;
-    qty = Math.min(remaining, qty);
+    const staged = stagedQtyForItem(itemId);
+    const capLeft = 8 - labelSheetTotal();
+    const maxAddable = Math.min(remaining - staged, capLeft);
+    if (maxAddable <= 0){
+      notify(capLeft <= 0 ? 'Label sheet is full (8/8) — print or clear it first.' : 'All remaining pieces of this line are already on the sheet.', true);
+      return;
+    }
+    const input = document.getElementById(`printQty-${itemId}`);
+    let qty = parseInt(input ? input.value : 0, 10);
+    if (isNaN(qty) || qty < 1){
+      notify('Enter how many to add first.', true);
+      return;
+    }
+    qty = Math.min(maxAddable, qty);
 
-    const pages = buildIndividualLabelPages(it, qty);
-    it.doneQty += qty;
+    const existing = labelSheetStaging.find(s => s.itemId === itemId);
+    if (existing) existing.qty += qty;
+    else labelSheetStaging.push({ itemId, mark: it.mark, qty });
+
+    renderLabelSheet();
+    renderQueueTable();
+  };
+
+  window.removeFromLabelSheet = function(itemId){
+    labelSheetStaging = labelSheetStaging.filter(s => s.itemId !== itemId);
+    renderLabelSheet();
+    renderQueueTable();
+  };
+
+  window.clearLabelSheet = function(){
+    labelSheetStaging = [];
+    renderLabelSheet();
+    renderQueueTable();
+  };
+
+  function renderLabelSheet(){
+    const total = labelSheetTotal();
+    document.getElementById('labelSheetCount').textContent = total;
+    const btn = document.getElementById('btnPrintLabelSheet');
+    btn.disabled = total === 0;
+    const el = document.getElementById('labelSheetList');
+    if (!labelSheetStaging.length){
+      el.innerHTML = '<p class="help-text">Nothing added yet.</p>';
+      return;
+    }
+    el.innerHTML = labelSheetStaging.map(s => `
+      <div class="pack-staging-row">
+        <div class="ps-main">${escapeHtml(s.mark)} <span style="color:var(--tx3);">× ${s.qty}</span></div>
+        <button class="icon-btn" title="Remove" onclick="removeFromLabelSheet('${s.itemId}')">✕</button>
+      </div>`).join('');
+  }
+
+  window.printLabelSheetBatch = function(){
+    if (!labelSheetStaging.length) return;
+    const pages = buildLabelCellsFromEntries(labelSheetStaging);
+    labelSheetStaging.forEach(s => {
+      const it = (activeQueue||[]).find(i => i.id === s.itemId);
+      if (it) it.doneQty = Math.min(it.qty, it.doneQty + s.qty);
+    });
+    const printedCount = labelSheetTotal();
     setDirty(true);
+    labelSheetStaging = [];
     renderAllActive();
+    renderLabelSheet();
     printLabelSheet(pages);
-    notify(`Printed ${qty} label${qty===1?'':'s'} for ${it.mark} and marked done.`);
+    notify(`Printed ${printedCount} label${printedCount===1?'':'s'} and marked done.`);
   };
 
   window.toggleAllDone = function(checked){
