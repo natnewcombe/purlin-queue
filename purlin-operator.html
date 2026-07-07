@@ -206,7 +206,15 @@
   tbody td { padding: 9px 10px; border-bottom: 0.5px solid var(--bdr); vertical-align: middle; }
   tbody tr.done { opacity: 0.5; }
   tbody tr.done .mark { text-decoration: line-through; }
-  tbody tr:not(.done) { cursor: pointer; }
+  tbody tr.partial { background: var(--brand-light); }
+  .done-qty-cell { display: flex; align-items: center; gap: 6px; }
+  .done-qty-input {
+    width: 56px; padding: 5px 7px; border: 0.5px solid var(--bdr2); border-radius: var(--r);
+    background: var(--bg2); color: var(--tx); font-family: inherit; font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .done-qty-input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+  .done-qty-of { color: var(--tx3); }
   .order-num { color: var(--tx3); font-variant-numeric: tabular-nums; width: 26px; display: inline-block; }
   .tag { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.3px; }
   .tag-site { background: #e3f0ff; color: #1a5fb4; }
@@ -272,31 +280,56 @@
   <aside class="op-sidebar">
     <div class="card">
       <div class="card-head" onclick="toggleCard('sidebarCard')" id="sidebarCardHead">
-        <h2>Planned Jobs</h2>
-        <button class="btn-ghost btn-sm" onclick="event.stopPropagation();refreshJobs()">Refresh</button>
+        <h2 id="sidebarHeading">Planned Jobs</h2>
+        <button class="btn-ghost btn-sm" onclick="event.stopPropagation();sidebarTab==='history' ? refreshHistoryList() : refreshJobs()">Refresh</button>
       </div>
       <div class="card-body" id="sidebarCardBody" style="padding-top:2px;">
-        <div class="sidebar-toolbar">
-          <input type="text" id="searchBox" placeholder="Search job, zone…" oninput="renderJobList()">
-          <div class="sidebar-row">
-            <select id="sortSel" onchange="renderJobList()">
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-              <option value="nameAsc">Job A→Z</option>
-              <option value="mostItems">Most items</option>
-            </select>
+        <div class="sidebar-row" style="padding:0 4px 10px;">
+          <button class="chip active" id="tabPlanned" onclick="setSidebarTab('planned')" style="flex:1;text-align:center;">Planned</button>
+          <button class="chip" id="tabHistory" onclick="setSidebarTab('history')" style="flex:1;text-align:center;">History</button>
+        </div>
+
+        <div id="plannedPane">
+          <div class="sidebar-toolbar">
+            <input type="text" id="searchBox" placeholder="Search job, zone…" oninput="renderJobList()">
+            <div class="sidebar-row">
+              <select id="sortSel" onchange="renderJobList()">
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="nameAsc">Job A→Z</option>
+                <option value="mostItems">Most items</option>
+              </select>
+            </div>
+          </div>
+          <div class="chip-row">
+            <button class="chip active" data-range="ALL" onclick="setDateRange('ALL')">All</button>
+            <button class="chip" data-range="1" onclick="setDateRange('1')">Today</button>
+            <button class="chip" data-range="7" onclick="setDateRange('7')">7d</button>
+            <button class="chip" data-range="30" onclick="setDateRange('30')">30d</button>
+          </div>
+          <div class="job-list" id="jobList"></div>
+          <div class="empty-state" id="jobListEmpty" style="display:none;padding:24px 10px;">
+            <div class="big">📭</div>
+            <div id="jobListEmptyMsg">No saved jobs found.</div>
           </div>
         </div>
-        <div class="chip-row">
-          <button class="chip active" data-range="ALL" onclick="setDateRange('ALL')">All</button>
-          <button class="chip" data-range="1" onclick="setDateRange('1')">Today</button>
-          <button class="chip" data-range="7" onclick="setDateRange('7')">7d</button>
-          <button class="chip" data-range="30" onclick="setDateRange('30')">30d</button>
-        </div>
-        <div class="job-list" id="jobList"></div>
-        <div class="empty-state" id="jobListEmpty" style="display:none;padding:24px 10px;">
-          <div class="big">📭</div>
-          <div id="jobListEmptyMsg">No saved jobs found.</div>
+
+        <div id="historyPane" style="display:none;">
+          <div class="sidebar-toolbar">
+            <input type="text" id="historySearchSidebar" placeholder="Search job, zone…" oninput="renderHistoryList()">
+          </div>
+          <div class="chip-row">
+            <button class="chip active" data-hrange="ALL" onclick="setHistoryRange('ALL')">All</button>
+            <button class="chip" data-hrange="1" onclick="setHistoryRange('1')">Today</button>
+            <button class="chip" data-hrange="7" onclick="setHistoryRange('7')">7d</button>
+            <button class="chip" data-hrange="30" onclick="setHistoryRange('30')">30d</button>
+          </div>
+          <p class="help-text" style="padding:0 4px;">Tap a completed job to reopen its queue for review.</p>
+          <div class="job-list" id="historyJobList"></div>
+          <div class="empty-state" id="historyJobListEmpty" style="display:none;padding:24px 10px;">
+            <div class="big">🎉</div>
+            <div id="historyJobListEmptyMsg">No jobs completed yet.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -356,8 +389,8 @@
                 <th>Gauge</th>
                 <th>Qty</th>
                 <th>Length</th>
-                <th class="th-done" style="width:80px;">
-                  <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllDone(this.checked)" title="Mark all visible items as done"> Done
+                <th class="th-done" style="width:160px;">
+                  <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllDone(this.checked)" title="Mark all visible items fully done"> Done
                 </th>
               </tr>
             </thead>
@@ -441,11 +474,15 @@
   let activeJob = '';
   let activeZone = '';
   let activeFilename = null;
+  let activeCompletedAt = null;  // set once the loaded job reaches 100% done, cleared if reopened
   let isDirty = false;
 
   let groupFilter = 'ALL';
   let typeFilter = 'ALL';
   let profileFilter = null;
+  let sidebarTab = 'planned'; // 'planned' | 'history'
+  let historyEntries = [];
+  let historyRange = 'ALL';
 
   /* ================= Utilities ================= */
   function notify(msg, isErr){
@@ -499,6 +536,8 @@
       cassCount: f.cassCount || 0,
       totalCount: f.totalCount != null ? f.totalCount : (f.siteCount||0)+(f.cassCount||0),
       doneCount: f.doneCount || 0,
+      totalQty: f.totalQty || 0,
+      doneQty: f.doneQty || 0,
       metaError: !!f.metaError
     };
   }
@@ -519,6 +558,36 @@
     await new Promise(r => setTimeout(r, 2500));
     const list = await scriptCall({action:'list'});
     return (list.files || []).find(f => f.name === filename) || null;
+  }
+
+  async function logCompletion(entry){
+    const formData = new FormData();
+    formData.append('action','logComplete');
+    formData.append('entry', JSON.stringify(entry));
+    await fetch(APPS_SCRIPT_URL, {method:'POST', body:formData, mode:'no-cors'});
+  }
+
+  function isQueueComplete(q){
+    return q.length > 0 && q.every(i => isLineDone(i));
+  }
+
+  function migrateItem(it){
+    if (typeof it.doneQty !== 'number'){
+      it.doneQty = it.status === 'done' ? it.qty : 0;
+    }
+    it.doneQty = Math.max(0, Math.min(it.qty, it.doneQty));
+    return it;
+  }
+
+  function buildCompletionEntry(job, zone, filename, fileId, q, completedAt){
+    return {
+      job, zone, filename, fileId, completedAt,
+      totalItems: q.length,
+      totalQty: q.reduce((s,i)=>s+i.qty,0),
+      totalWeightKg: q.reduce((s,i)=>s+(i.weight||0),0),
+      totalLenM: q.reduce((s,i)=>s+(i.qty*i.length)/1000,0),
+      distinctSizes: new Set(q.map(i=>i.size).filter(Boolean)).size
+    };
   }
 
   /* ================= Sidebar: job list ================= */
@@ -574,7 +643,7 @@
   }
 
   function jobItemHtml(f){
-    const pct = f.totalCount ? Math.round((f.doneCount/f.totalCount)*100) : 0;
+    const pct = f.totalQty ? Math.round((f.doneQty/f.totalQty)*100) : 0;
     const when = new Date(f.modifiedTime).toLocaleString('en-AU');
     const title = f.job ? `Job ${escapeHtml(f.job)}${f.zone ? ' · Zone '+escapeHtml(f.zone) : ''}` : escapeHtml(f.name);
     const isActive = f.id === activeFilenameId();
@@ -586,7 +655,7 @@
         <div class="ji-progress">
           <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${pct}%;"></div></div>
         </div>
-        <div class="ji-pct">${f.doneCount}/${f.totalCount} pcs · ${pct}% done</div>
+        <div class="ji-pct">${f.doneQty}/${f.totalQty} pcs · ${pct}% done</div>
       </div>`;
   }
 
@@ -620,6 +689,91 @@
     renderJobList();
   };
 
+  window.setSidebarTab = function(tab){
+    sidebarTab = tab;
+    document.getElementById('tabPlanned').classList.toggle('active', tab === 'planned');
+    document.getElementById('tabHistory').classList.toggle('active', tab === 'history');
+    document.getElementById('plannedPane').style.display = tab === 'planned' ? '' : 'none';
+    document.getElementById('historyPane').style.display = tab === 'history' ? '' : 'none';
+    document.getElementById('sidebarHeading').textContent = tab === 'planned' ? 'Planned Jobs' : 'Completed Jobs';
+    if (tab === 'history' && !historyEntries.length) refreshHistoryList();
+  };
+
+  window.refreshHistoryList = async function(){
+    const list = document.getElementById('historyJobList');
+    const empty = document.getElementById('historyJobListEmpty');
+    empty.style.display = 'none';
+    if (!APPS_SCRIPT_URL){
+      list.innerHTML = '';
+      empty.style.display = '';
+      document.getElementById('historyJobListEmptyMsg').textContent = 'Set the Apps Script URL first (⚙ icon).';
+      return;
+    }
+    list.innerHTML = '<p class="help-text">Loading…</p>';
+    try {
+      const result = await scriptCall({action:'listCompletions'});
+      if (!result.ok){ notify('Error: ' + result.error, true); list.innerHTML=''; return; }
+      historyEntries = result.entries || [];
+      renderHistoryList();
+    } catch(err){
+      list.innerHTML = '';
+      notify('Could not reach the backend: ' + err.message, true);
+    }
+  };
+
+  window.setHistoryRange = function(r){
+    historyRange = r;
+    document.querySelectorAll('.chip[data-hrange]').forEach(c => c.classList.toggle('active', c.dataset.hrange === r));
+    renderHistoryList();
+  };
+
+  function withinHistoryRange(en){
+    if (historyRange === 'ALL') return true;
+    const days = parseInt(historyRange, 10);
+    const cutoff = Date.now() - days*24*60*60*1000;
+    return en.completedAt && new Date(en.completedAt).getTime() >= cutoff;
+  }
+
+  window.renderHistoryList = function(){
+    const list = document.getElementById('historyJobList');
+    const empty = document.getElementById('historyJobListEmpty');
+    const search = (document.getElementById('historySearchSidebar').value || '').trim().toLowerCase();
+    let rows = historyEntries.filter(en => {
+      if (!withinHistoryRange(en)) return false;
+      if (search){
+        const hay = `${en.job||''} ${en.zone||''} ${en.filename||''}`.toLowerCase();
+        if (!hay.includes(search)) return false;
+      }
+      return true;
+    });
+    rows.sort((a,b) => (b.completedAt||'').localeCompare(a.completedAt||''));
+
+    if (!historyEntries.length){
+      list.innerHTML = '';
+      empty.style.display = '';
+      document.getElementById('historyJobListEmptyMsg').textContent = 'No jobs completed yet.';
+      return;
+    }
+    if (!rows.length){
+      list.innerHTML = '';
+      empty.style.display = '';
+      document.getElementById('historyJobListEmptyMsg').textContent = 'No completed jobs match the current filters.';
+      return;
+    }
+    empty.style.display = 'none';
+    list.innerHTML = rows.map(en => {
+      const when = en.completedAt ? new Date(en.completedAt).toLocaleString('en-AU') : '—';
+      const title = en.job ? `Job ${escapeHtml(en.job)}${en.zone ? ' · Zone '+escapeHtml(en.zone) : ''}` : escapeHtml(en.filename||'');
+      const clickAttr = en.fileId ? `onclick="loadJob('${en.fileId}')"` : '';
+      return `
+        <div class="job-item" ${clickAttr} style="${en.fileId ? '' : 'cursor:default;'}">
+          <div class="ji-title">${title}</div>
+          <div class="ji-meta">Completed ${when}</div>
+          <div class="ji-meta">${en.totalItems||0} items · ${en.totalQty||0} pcs · ${fmtNum(en.totalWeightKg||0,0)} kg · ${fmtNum(en.totalLenM||0,1)} m · ${en.distinctSizes||0} sizes</div>
+        </div>`;
+    }).join('');
+  };
+
   /* ================= Loading a job into the active panel ================= */
   window.loadJob = function(id){
     if (id === activeFileId) return;
@@ -629,11 +783,12 @@
         const result = await scriptCall({action:'load', id});
         if (!result.ok){ notify('Load failed: ' + (result.error||'unknown error'), true); return; }
         const content = typeof result.content === 'string' ? JSON.parse(result.content) : result.content;
-        activeQueue = content.items || [];
+        activeQueue = (content.items || []).map(migrateItem);
         activeJob = content.job || '';
         activeZone = content.zone || '';
         activeFilename = result.name;
         activeFileId = id;
+        activeCompletedAt = content.completedAt || null;
         groupFilter = 'ALL'; typeFilter = 'ALL'; profileFilter = null;
         setDirty(false);
         document.getElementById('noJobState').style.display = 'none';
@@ -661,7 +816,7 @@
         await scriptCall({action:'delete', id});
         notify('Job deleted.');
         if (id === activeFileId){
-          activeQueue = null; activeFileId = null; activeFilename = null;
+          activeQueue = null; activeFileId = null; activeFilename = null; activeCompletedAt = null;
           setDirty(false);
           document.getElementById('noJobState').style.display = '';
           document.getElementById('activeJobWrap').style.display = 'none';
@@ -681,18 +836,24 @@
   }
 
   /* ================= Active job: stats, progress, table ================= */
+  function isLineDone(it){ return it.doneQty >= it.qty; }
+
   function computeStats(){
     const q = activeQueue || [];
-    const pending = q.filter(i => i.status !== 'done');
+    const pending = q.filter(i => !isLineDone(i));
     const site = q.filter(i => i.group === 'SITE');
     const cass = q.filter(i => i.group === 'CASSETTE');
     const totalLenM = q.reduce((s,i)=> s + (i.qty * i.length)/1000, 0);
     const totalWeightKg = q.reduce((s,i)=> s + (i.weight||0), 0);
+    const weightDoneKg = q.reduce((s,i)=> s + (i.qty ? (i.doneQty/i.qty)*(i.weight||0) : 0), 0);
+    const piecesTotal = q.reduce((s,i)=> s + i.qty, 0);
+    const piecesDone = q.reduce((s,i)=> s + i.doneQty, 0);
     const longestLength = q.reduce((m,i)=> Math.max(m, i.length||0), 0);
     const distinctSizes = new Set(q.map(i=>i.size).filter(Boolean)).size;
     return {
       total: q.length, pending: pending.length, done: q.length - pending.length,
-      site: site.length, cass: cass.length, totalLenM, totalWeightKg, longestLength, distinctSizes
+      site: site.length, cass: cass.length, totalLenM, totalWeightKg, weightDoneKg,
+      piecesTotal, piecesDone, longestLength, distinctSizes
     };
   }
 
@@ -701,12 +862,13 @@
     const grid = document.getElementById('statGrid');
     grid.innerHTML = [
       {n:s.total, l:'Total items'},
-      {n:s.pending, l:'Left to do'},
-      {n:s.done, l:'Completed'},
+      {n:s.pending, l:'Lines remaining'},
+      {n:s.done, l:'Lines completed'},
+      {n:`${s.piecesDone}/${s.piecesTotal}`, l:'Pieces done'},
       {n:s.site, l:'Site items'},
       {n:s.cass, l:'Cassette/Factory items'},
       {n:fmtNum(s.totalLenM,1)+' m', l:'Total length'},
-      {n:fmtNum(s.totalWeightKg,0)+' kg', l:'Total weight'},
+      {n:`${fmtNum(s.weightDoneKg,0)}/${fmtNum(s.totalWeightKg,0)} kg`, l:'Weight done'},
       {n:fmtNum(s.longestLength,0)+' mm', l:'Longest length'},
       {n:s.distinctSizes, l:'Different sizes'}
     ].map(x => `<div class="stat"><div class="n">${x.n}</div><div class="l">${x.l}</div></div>`).join('');
@@ -718,13 +880,13 @@
     if (!q.length){ el.innerHTML = '<p class="help-text">No items loaded.</p>'; return; }
 
     function summarize(items){
-      const done = items.filter(i => i.status === 'done');
+      const doneLines = items.filter(i => isLineDone(i));
       const totalQty = items.reduce((s,i)=>s+i.qty,0);
-      const doneQty = done.reduce((s,i)=>s+i.qty,0);
+      const doneQty = items.reduce((s,i)=>s+i.doneQty,0);
       const totalLen = items.reduce((s,i)=>s+(i.qty*i.length)/1000,0);
-      const doneLen = done.reduce((s,i)=>s+(i.qty*i.length)/1000,0);
+      const doneLen = items.reduce((s,i)=>s+(i.doneQty*i.length)/1000,0);
       const pct = totalQty ? Math.round((doneQty/totalQty)*100) : 0;
-      return {totalQty, doneQty, totalLen, doneLen, pct, lines: items.length, doneLines: done.length};
+      return {totalQty, doneQty, totalLen, doneLen, pct, lines: items.length, doneLines: doneLines.length};
     }
     function row(label, sub, s, extraClass){
       return `
@@ -820,11 +982,14 @@
     const body = document.getElementById('queueBody');
     document.getElementById('queueEmptyState').style.display = rows.length ? 'none' : '';
     const selectAll = document.getElementById('selectAllCheckbox');
-    selectAll.checked = rows.length > 0 && rows.every(r => r.status === 'done');
+    selectAll.checked = rows.length > 0 && rows.every(r => isLineDone(r));
     selectAll.disabled = rows.length === 0;
 
-    body.innerHTML = rows.map((it, idx) => `
-      <tr data-id="${it.id}" class="${it.status==='done' ? 'done':''}">
+    body.innerHTML = rows.map((it, idx) => {
+      const done = isLineDone(it);
+      const partial = !done && it.doneQty > 0;
+      return `
+      <tr data-id="${it.id}" class="${done ? 'done':''}${partial ? ' partial':''}">
         <td class="order-num">${idx+1}</td>
         <td class="mark">${escapeHtml(it.mark)}</td>
         <td><span class="tag ${it.group==='SITE'?'tag-site':'tag-cassette'}">${it.group==='SITE'?'Site':'Cassette'}</span></td>
@@ -833,16 +998,17 @@
         <td class="mono">${it.gauge ? it.gauge+' BMT' : '—'}</td>
         <td class="mono">${it.qty}</td>
         <td class="mono">${fmtNum(it.length,0)} mm</td>
-        <td><input type="checkbox" ${it.status==='done'?'checked':''} onclick="event.stopPropagation();toggleDone('${it.id}')"></td>
+        <td>
+          <div class="done-qty-cell">
+            <input type="number" class="done-qty-input" min="0" max="${it.qty}" value="${it.doneQty}"
+                   onchange="setDoneQty('${it.id}', this.value)" onclick="event.stopPropagation();">
+            <span class="mono done-qty-of">/ ${it.qty}</span>
+            <button class="icon-btn" title="Mark all ${it.qty} pcs done" onclick="event.stopPropagation();setDoneQty('${it.id}', ${it.qty})">✓</button>
+          </div>
+        </td>
       </tr>
-    `).join('');
-
-    body.querySelectorAll('tr[data-id]').forEach(row => {
-      row.addEventListener('click', () => {
-        if (row.classList.contains('done')) return; // tapping a done row does nothing; use checkbox to un-tick
-        toggleDone(row.dataset.id);
-      });
-    });
+    `;
+    }).join('');
   };
 
   function renderAllActive(){
@@ -851,26 +1017,29 @@
     renderQueueTable();
   }
 
-  window.toggleDone = function(id){
+  window.setDoneQty = function(id, val){
     const it = (activeQueue||[]).find(i => i.id === id);
     if (!it) return;
-    it.status = it.status === 'done' ? 'pending' : 'done';
+    let v = parseInt(val, 10);
+    if (isNaN(v)) v = 0;
+    v = Math.max(0, Math.min(it.qty, v));
+    it.doneQty = v;
     setDirty(true);
     renderAllActive();
   };
 
   window.toggleAllDone = function(checked){
-    filteredQueue().forEach(it => { it.status = checked ? 'done' : 'pending'; });
+    filteredQueue().forEach(it => { it.doneQty = checked ? it.qty : 0; });
     setDirty(true);
     renderAllActive();
   };
 
   window.clearCompleted = function(){
     const q = activeQueue || [];
-    const doneCount = q.filter(i=>i.status==='done').length;
+    const doneCount = q.filter(i=>isLineDone(i)).length;
     if (!doneCount){ notify('No completed items to clear.'); return; }
     confirmAction('Clear completed', `Remove ${doneCount} completed item(s) from the queue?`, () => {
-      activeQueue = q.filter(i => i.status !== 'done');
+      activeQueue = q.filter(i => !isLineDone(i));
       setDirty(true);
       renderAllActive();
     });
@@ -891,10 +1060,22 @@
   window.saveProgress = async function(){
     if (!APPS_SCRIPT_URL){ notify('Set the Apps Script URL first (⚙ icon).', true); openModal('settingsModal'); return; }
     if (!activeQueue || !activeFilename){ notify('No job loaded.', true); return; }
+
+    const nowComplete = isQueueComplete(activeQueue);
+    let newCompletedAt = activeCompletedAt;
+    let shouldLog = false;
+    if (nowComplete && !activeCompletedAt){
+      newCompletedAt = new Date().toISOString();
+      shouldLog = true;
+    } else if (!nowComplete && activeCompletedAt){
+      newCompletedAt = null;
+    }
+
     const payload = {
       job: activeJob,
       zone: activeZone,
       savedAt: new Date().toISOString(),
+      completedAt: newCompletedAt,
       items: activeQueue
     };
     notify('Saving progress…');
@@ -902,7 +1083,17 @@
       const result = await scriptSave(activeFilename, JSON.stringify(payload));
       if (result){
         setDirty(false);
-        notify('Progress saved.');
+        activeCompletedAt = newCompletedAt;
+        if (shouldLog){
+          try {
+            await logCompletion(buildCompletionEntry(activeJob, activeZone, activeFilename, result.id, activeQueue, newCompletedAt));
+            notify('Progress saved — job marked complete 🎉');
+          } catch(logErr){
+            notify('Progress saved, but the completion log could not be updated: ' + logErr.message, true);
+          }
+        } else {
+          notify('Progress saved.');
+        }
         refreshJobs();
       } else {
         notify('Save sent, but could not confirm — check the job list.', true);
