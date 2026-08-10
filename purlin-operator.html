@@ -98,6 +98,15 @@
     .op-sidebar { order: 2; }
     .op-main { order: 1; }
   }
+
+  .job-work-layout {
+    display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start;
+  }
+  .job-work-side { position: sticky; top: 66px; display: flex; flex-direction: column; }
+  @media (max-width: 1100px) {
+    .job-work-layout { grid-template-columns: 1fr; }
+    .job-work-side { position: static; }
+  }
   .card {
     background: var(--bg2);
     border: 0.5px solid var(--bdr);
@@ -194,6 +203,20 @@
     border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--tx);
   }
   .filter-bar .spacer { flex: 1; }
+
+  /* ---------- Row highlight paint bar ---------- */
+  .paint-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 16px 12px; }
+  .paint-label { font-size: 11px; color: var(--tx3); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-right: 2px; }
+  .paint-swatch {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: #fff; font-weight: 700;
+    transition: transform .1s ease;
+  }
+  .paint-swatch.active { border-color: var(--tx); transform: scale(1.12); box-shadow: 0 0 0 2px var(--bg2), 0 0 0 4px var(--tx); }
+  .paint-swatch.eraser { background: var(--bg2); color: var(--tx3); border: 1.5px dashed var(--bdr2); }
+  .paint-hint { font-size: 11px; color: var(--tx3); }
+  tbody tr[data-id] { cursor: default; }
+  body.paint-mode tbody tr[data-id] { cursor: pointer; }
 
   /* ---------- Table ---------- */
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -421,74 +444,81 @@
         </div>
       </div>
 
-      <div class="card" id="queueCard">
-        <div class="card-head" onclick="toggleCard('queueCard')">
-          <h2>Run Queue</h2>
-          <span class="chev">▾</span>
+      <div class="job-work-layout">
+        <div class="job-work-main">
+          <div class="card" id="queueCard">
+            <div class="card-head" onclick="toggleCard('queueCard')">
+              <h2>Run Queue</h2>
+              <span class="chev">▾</span>
+            </div>
+            <div class="card-body">
+              <div class="filter-bar">
+                <button class="chip active" data-group="ALL" onclick="setGroupFilter('ALL')">All</button>
+                <button class="chip" data-group="SITE" onclick="setGroupFilter('SITE')">Site</button>
+                <button class="chip" data-group="CASSETTE" onclick="setGroupFilter('CASSETTE')">Cassettes / Factory</button>
+                <input type="text" id="markSearch" placeholder="Search mark…" oninput="renderQueueTable()">
+                <span class="spacer"></span>
+                <button class="btn-ghost btn-sm" onclick="clearCompleted()">Clear completed</button>
+                <button class="btn-danger btn-sm" onclick="clearQueue()">Clear queue</button>
+              </div>
+              <div class="chip-row" id="typeChips"></div>
+              <div class="chip-row" id="profileChips"></div>
+              <div class="paint-bar" id="paintBar"></div>
+              <div style="overflow-x:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:34px;">#</th>
+                    <th>Mark</th>
+                    <th>Group</th>
+                    <th>Material</th>
+                    <th>Size</th>
+                    <th>Gauge</th>
+                    <th>Qty</th>
+                    <th>Length</th>
+                    <th class="th-done" style="width:160px;">
+                      <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllDone(this.checked)" title="Mark all visible items fully done"> Done
+                    </th>
+                    <th style="width:150px;">Print labels</th>
+                  </tr>
+                </thead>
+                <tbody id="queueBody"></tbody>
+              </table>
+              </div>
+              <div class="empty-state" id="queueEmptyState" style="display:none;">
+                <div class="big">📭</div>
+                No items match the current filters.
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="card-body">
-          <div class="filter-bar">
-            <button class="chip active" data-group="ALL" onclick="setGroupFilter('ALL')">All</button>
-            <button class="chip" data-group="SITE" onclick="setGroupFilter('SITE')">Site</button>
-            <button class="chip" data-group="CASSETTE" onclick="setGroupFilter('CASSETTE')">Cassettes / Factory</button>
-            <input type="text" id="markSearch" placeholder="Search mark…" oninput="renderQueueTable()">
-            <span class="spacer"></span>
-            <button class="btn-ghost btn-sm" onclick="clearCompleted()">Clear completed</button>
-            <button class="btn-danger btn-sm" onclick="clearQueue()">Clear queue</button>
-          </div>
-          <div class="chip-row" id="typeChips"></div>
-          <div class="chip-row" id="profileChips"></div>
-          <div style="overflow-x:auto;">
-          <table>
-            <thead>
-              <tr>
-                <th style="width:34px;">#</th>
-                <th>Mark</th>
-                <th>Group</th>
-                <th>Material</th>
-                <th>Size</th>
-                <th>Gauge</th>
-                <th>Qty</th>
-                <th>Length</th>
-                <th class="th-done" style="width:160px;">
-                  <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllDone(this.checked)" title="Mark all visible items fully done"> Done
-                </th>
-                <th style="width:150px;">Print labels</th>
-              </tr>
-            </thead>
-            <tbody id="queueBody"></tbody>
-          </table>
-          </div>
-          <div class="empty-state" id="queueEmptyState" style="display:none;">
-            <div class="big">📭</div>
-            No items match the current filters.
-          </div>
-        </div>
-      </div>
 
-      <div class="card" id="labelSheetCard">
-        <div class="card-head" onclick="toggleCard('labelSheetCard')">
-          <h2>Label Sheet — <span id="labelSheetCount">0</span>/8</h2>
-          <span class="chev">▾</span>
-        </div>
-        <div class="card-body">
-          <p class="help-text">Add pieces from the Run Queue below to build a sheet of up to 8 labels, mixing marks freely, then print them all at once.</p>
-          <div id="labelSheetList"></div>
-          <div style="display:flex;gap:8px;margin-top:12px;">
-            <button class="btn-ghost btn-sm" onclick="clearLabelSheet()">Clear</button>
-            <button class="btn-primary btn-sm" id="btnPrintLabelSheet" onclick="printLabelSheetBatch()" disabled>Print Sheet</button>
+        <div class="job-work-side">
+          <div class="card" id="labelSheetCard">
+            <div class="card-head" onclick="toggleCard('labelSheetCard')">
+              <h2>Label Sheet — <span id="labelSheetCount">0</span>/8</h2>
+              <span class="chev">▾</span>
+            </div>
+            <div class="card-body">
+              <p class="help-text">Add pieces from the Run Queue to build a sheet of up to 8 labels, mixing marks freely, then print them all at once.</p>
+              <div id="labelSheetList"></div>
+              <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn-ghost btn-sm" onclick="clearLabelSheet()">Clear</button>
+                <button class="btn-primary btn-sm" id="btnPrintLabelSheet" onclick="printLabelSheetBatch()" disabled>Print Sheet</button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div class="card" id="packsCard">
-        <div class="card-head" onclick="toggleCard('packsCard')">
-          <h2>Packs</h2>
-          <span class="chev">▾</span>
-        </div>
-        <div class="card-body">
-          <button class="btn-primary btn-sm" style="margin-bottom:12px;" onclick="openNewPackModal()">New Pack</button>
-          <div id="packsList"></div>
+          <div class="card" id="packsCard">
+            <div class="card-head" onclick="toggleCard('packsCard')">
+              <h2>Packs</h2>
+              <span class="chev">▾</span>
+            </div>
+            <div class="card-body">
+              <button class="btn-primary btn-sm" style="margin-bottom:12px;" onclick="openNewPackModal()">New Pack</button>
+              <div id="packsList"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -595,6 +625,17 @@
   let typeFilter = 'ALL';
   let profileFilter = null;
   let sidebarTab = 'planned'; // 'planned' | 'history'
+
+  const PAINT_COLORS = [
+    { key:'green',  bg:'#dcf5df', accent:'#2e7d32' },
+    { key:'blue',   bg:'#dce9fb', accent:'#1a5fb4' },
+    { key:'yellow', bg:'#fdf3c9', accent:'#a3790a' },
+    { key:'purple', bg:'#ecdcfb', accent:'#7b3ff2' },
+    { key:'pink',   bg:'#fde0ec', accent:'#c2185b' },
+    { key:'teal',   bg:'#d7f5f0', accent:'#0f766e' },
+    { key:'red',    bg:'#fbdcdc', accent:'#c0392b' }
+  ];
+  let activePaintColor = null; // one of PAINT_COLORS[].key, 'ERASE', or null
   let historyEntries = [];
   let historyRange = 'ALL';
 
@@ -692,6 +733,7 @@
     it.doneQty = Math.max(0, Math.min(it.qty, it.doneQty));
     if (typeof it.packedQty !== 'number') it.packedQty = 0;
     it.packedQty = Math.max(0, Math.min(it.doneQty, it.packedQty));
+    if (it.highlightColor === undefined) it.highlightColor = null;
     return it;
   }
 
@@ -908,6 +950,8 @@
         activePacks = content.packs || [];
         activePackCounter = content.packCounter || 0;
         labelSheetStaging = [];
+        activePaintColor = null;
+        document.body.classList.remove('paint-mode');
         groupFilter = 'ALL'; typeFilter = 'ALL'; profileFilter = null;
         setDirty(false);
         document.getElementById('noJobState').style.display = 'none';
@@ -918,6 +962,7 @@
         renderAllActive();
         renderPacksList();
         renderLabelSheet();
+        renderPaintBar();
         renderJobList();
         notify('Job loaded.');
       } catch(err){
@@ -940,6 +985,8 @@
           activeQueue = null; activeFileId = null; activeFilename = null; activeCompletedAt = null;
           activePacks = []; activePackCounter = 0;
           labelSheetStaging = [];
+          activePaintColor = null;
+          document.body.classList.remove('paint-mode');
           setDirty(false);
           document.getElementById('noJobState').style.display = '';
           document.getElementById('activeJobWrap').style.display = 'none';
@@ -1128,8 +1175,10 @@
              <button class="btn-ghost btn-sm" onclick="event.stopPropagation();addToLabelSheet('${it.id}')">+ Add</button>
            </div>`;
       }
+      const colorEntry = it.highlightColor ? PAINT_COLORS.find(c => c.key === it.highlightColor) : null;
+      const rowStyle = colorEntry ? ` style="background:${colorEntry.bg};border-left:4px solid ${colorEntry.accent};"` : '';
       return `
-      <tr data-id="${it.id}" class="${done ? 'done':''}${partial ? ' partial':''}">
+      <tr data-id="${it.id}" class="${done ? 'done':''}${partial ? ' partial':''}"${rowStyle} onclick="handleRowClick('${it.id}')">
         <td class="order-num">${idx+1}</td>
         <td class="mark">${escapeHtml(it.mark)}</td>
         <td><span class="tag ${it.group==='SITE'?'tag-site':'tag-cassette'}">${it.group==='SITE'?'Site':'Cassette'}</span></td>
@@ -1146,7 +1195,7 @@
             <button class="icon-btn" title="Mark all ${it.qty} pcs done" onclick="event.stopPropagation();setDoneQty('${it.id}', ${it.qty})">✓</button>
           </div>
         </td>
-        <td>${printCell}</td>
+        <td onclick="event.stopPropagation();">${printCell}</td>
       </tr>
     `;
     }).join('');
@@ -1157,6 +1206,53 @@
     renderProgress();
     renderQueueTable();
   }
+
+  /* ================= Row highlighting (paint mode) ================= */
+  function renderPaintBar(){
+    const el = document.getElementById('paintBar');
+    if (!el) return;
+    const swatches = PAINT_COLORS.map(c => `
+      <button class="paint-swatch${activePaintColor===c.key?' active':''}" style="background:${c.accent};"
+              title="${c.key}" onclick="setPaintColor('${c.key}')"></button>`).join('');
+    el.innerHTML = `
+      <span class="paint-label">Highlight:</span>
+      ${swatches}
+      <button class="paint-swatch eraser${activePaintColor==='ERASE'?' active':''}" title="Eraser — click a row to clear its color" onclick="setPaintColor('ERASE')">✕</button>
+      <span class="paint-hint">${activePaintColor ? (activePaintColor==='ERASE' ? 'Click rows to clear their color' : 'Click rows to highlight them — click again to undo') : 'Pick a color, then click rows below'}</span>
+      <span class="spacer"></span>
+      <button class="btn-ghost btn-sm" onclick="clearAllHighlights()">Clear all highlights</button>
+    `;
+  }
+
+  window.setPaintColor = function(key){
+    activePaintColor = (activePaintColor === key) ? null : key;
+    document.body.classList.toggle('paint-mode', !!activePaintColor);
+    renderPaintBar();
+  };
+
+  window.handleRowClick = function(id){
+    if (!activePaintColor) return;
+    const it = (activeQueue||[]).find(i => i.id === id);
+    if (!it) return;
+    if (activePaintColor === 'ERASE'){
+      it.highlightColor = null;
+    } else {
+      it.highlightColor = (it.highlightColor === activePaintColor) ? null : activePaintColor;
+    }
+    setDirty(true);
+    renderQueueTable();
+  };
+
+  window.clearAllHighlights = function(){
+    const q = activeQueue || [];
+    if (!q.some(i => i.highlightColor)){ notify('No highlights to clear.'); return; }
+    confirmAction('Clear all highlights', 'Remove color highlights from every row in this job?', () => {
+      q.forEach(i => { i.highlightColor = null; });
+      setDirty(true);
+      renderQueueTable();
+      notify('Highlights cleared.');
+    });
+  };
 
   window.setDoneQty = function(id, val){
     const it = (activeQueue||[]).find(i => i.id === id);
