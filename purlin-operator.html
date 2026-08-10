@@ -326,12 +326,12 @@
     font-size: 40pt; font-weight: 900; line-height: 1.15; text-align: center; word-break: break-word;
   }
 
-  .label-page.pack-page { display: block; grid-template-columns: 1fr; grid-template-rows: auto; padding: 6mm; }
-  .pack-label-job { font-size: 9pt; color: #333; }
-  .pack-label-title { font-size: 20pt; font-weight: 800; margin: 2mm 0 4mm; }
-  .pack-label-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-  .pack-label-table th, .pack-label-table td { text-align: left; padding: 1mm 2mm; border-bottom: 0.5pt solid #999; }
-  .pack-label-footer { margin-top: 4mm; font-size: 9pt; font-weight: 700; }
+  .label-page.pack-page {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 6mm; gap: 2mm; box-sizing: border-box;
+  }
+  .pack-label-line { font-size: 16pt; font-weight: 900; line-height: 1.25; }
+  .pack-label-total { margin-top: 3mm; font-size: 17pt; }
 </style>
 </head>
 <body>
@@ -517,7 +517,9 @@
       <button class="icon-btn" onclick="closeModal('packModal')">✕</button>
     </div>
     <div class="modal-body">
-      <p class="help-text">Only pieces already marked done (and not yet in another pack) can be added.</p>
+      <p class="help-text">Only pieces already marked done (and not yet in another pack) can be added. Use the highlight colors to narrow the list.</p>
+      <div class="chip-row" id="packColorFilterChips" style="padding:0 0 10px;"></div>
+      <button class="btn-ghost btn-sm" style="margin-bottom:12px;" onclick="addAllFilteredToPack()">Add all shown</button>
       <div id="packAvailableList" style="margin-bottom:16px;"></div>
       <div id="packEmptyAvailable" class="help-text" style="display:none;">Nothing available to pack yet — mark some pieces done first.</div>
       <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.3px;color:var(--tx3);margin:16px 0 8px;">In this pack</h4>
@@ -1330,33 +1332,89 @@
 
   /* ================= Packs ================= */
   let packStaging = []; // [{itemId, mark, size, gauge, length, qty}] while building a new pack
+  let packColorFilter = 'ALL'; // 'ALL' | 'UNCOLORED' | a PAINT_COLORS key
 
   function availableQty(it){ return Math.max(0, it.doneQty - it.packedQty); }
 
+  function availableItemsForPack(){
+    return (activeQueue || []).filter(it => availableQty(it) > 0);
+  }
+
+  function filteredAvailableItemsForPack(){
+    const all = availableItemsForPack();
+    if (packColorFilter === 'UNCOLORED') return all.filter(it => !it.highlightColor);
+    if (packColorFilter === 'ALL') return all;
+    return all.filter(it => it.highlightColor === packColorFilter);
+  }
+
   window.openNewPackModal = function(){
     packStaging = [];
+    const available = availableItemsForPack();
+    const colorsPresent = [...new Set(available.map(it => it.highlightColor).filter(Boolean))];
+    if (activePaintColor && activePaintColor !== 'ERASE' && colorsPresent.includes(activePaintColor)){
+      packColorFilter = activePaintColor;
+    } else if (colorsPresent.length === 1){
+      packColorFilter = colorsPresent[0];
+    } else {
+      packColorFilter = 'ALL';
+    }
+    renderPackColorFilterChips();
     renderPackAvailableList();
     renderPackStagingList();
     openModal('packModal');
   };
 
+  window.setPackColorFilter = function(filter){
+    packColorFilter = filter;
+    renderPackColorFilterChips();
+    renderPackAvailableList();
+  };
+
+  function renderPackColorFilterChips(){
+    const el = document.getElementById('packColorFilterChips');
+    if (!el) return;
+    const available = availableItemsForPack();
+    const colorsPresent = [...new Set(available.map(it => it.highlightColor).filter(Boolean))];
+    const uncoloredCount = available.filter(it => !it.highlightColor).length;
+    const chips = [
+      `<button class="chip${packColorFilter==='ALL'?' active':''}" onclick="setPackColorFilter('ALL')">All (${available.length})</button>`
+    ];
+    colorsPresent.forEach(key => {
+      const entry = PAINT_COLORS.find(c => c.key === key);
+      const count = available.filter(it => it.highlightColor === key).length;
+      const active = packColorFilter === key;
+      const style = active
+        ? `background:${entry.accent};border-color:${entry.accent};color:#fff;`
+        : `border-color:${entry.accent};color:${entry.accent};`;
+      chips.push(`<button class="chip" style="${style}" onclick="setPackColorFilter('${key}')">${key} (${count})</button>`);
+    });
+    if (uncoloredCount > 0){
+      chips.push(`<button class="chip${packColorFilter==='UNCOLORED'?' active':''}" onclick="setPackColorFilter('UNCOLORED')">Uncolored (${uncoloredCount})</button>`);
+    }
+    el.innerHTML = chips.join('');
+  }
+
   function renderPackAvailableList(){
     const el = document.getElementById('packAvailableList');
     const emptyEl = document.getElementById('packEmptyAvailable');
-    const q = activeQueue || [];
-    const rows = q.filter(it => availableQty(it) > 0);
+    const rows = filteredAvailableItemsForPack();
     if (!rows.length){
       el.innerHTML = '';
       emptyEl.style.display = '';
+      emptyEl.textContent = availableItemsForPack().length
+        ? 'Nothing available for this color — pick a different filter above.'
+        : 'Nothing available to pack yet — mark some pieces done first.';
       return;
     }
     emptyEl.style.display = 'none';
     el.innerHTML = rows.map(it => {
       const avail = availableQty(it);
+      const colorEntry = it.highlightColor ? PAINT_COLORS.find(c => c.key === it.highlightColor) : null;
+      const dot = colorEntry ? `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${colorEntry.accent};margin-right:6px;"></span>` : '';
       return `
         <div class="pack-avail-row">
           <div class="pa-main">
-            ${escapeHtml(it.mark)}
+            ${dot}${escapeHtml(it.mark)}
             <div class="pa-sub">${escapeHtml(it.size)}${it.gauge ? ' x '+escapeHtml(it.gauge)+' BMT' : ''} · ${fmtNum(it.length,0)} mm · ${avail} available</div>
           </div>
           <input type="number" class="pack-qty-input" min="1" max="${avail}" value="${avail}" id="packAdd-${it.id}">
@@ -1383,6 +1441,20 @@
     }
     renderPackAvailableList();
     renderPackStagingList();
+  };
+
+  window.addAllFilteredToPack = function(){
+    const rows = filteredAvailableItemsForPack();
+    if (!rows.length){ notify('Nothing available to add.'); return; }
+    rows.forEach(it => {
+      const avail = availableQty(it);
+      const existing = packStaging.find(s => s.itemId === it.id);
+      if (existing) existing.qty += avail;
+      else packStaging.push({ itemId: it.id, mark: it.mark, size: it.size, gauge: it.gauge, length: it.length, qty: avail });
+    });
+    renderPackAvailableList();
+    renderPackStagingList();
+    notify(`Added ${rows.length} line${rows.length===1?'':'s'} to the pack.`);
   };
 
   window.removeFromPackStaging = function(itemId){
@@ -1482,22 +1554,15 @@
   }
 
   function buildPackLabelPage(pack){
-    const rows = pack.contents.map(c => `
-      <tr>
-        <td>${escapeHtml(c.mark)}</td>
-        <td>${escapeHtml(c.size)}${c.gauge ? ' x '+escapeHtml(c.gauge)+' BMT' : ''}</td>
-        <td style="text-align:right;">${c.qty}</td>
-      </tr>`).join('');
+    const itemLines = pack.contents.map(c => `<div class="pack-label-line">${escapeHtml(c.mark)} — ${c.qty}</div>`).join('');
     const totalPcs = pack.contents.reduce((s,c)=>s+c.qty,0);
     return `
       <div class="label-page pack-page">
-        <div class="pack-label-job">Job ${escapeHtml(activeJob)} · Zone ${escapeHtml(activeZone)}</div>
-        <div class="pack-label-title">PACK ${pack.number}</div>
-        <table class="pack-label-table">
-          <thead><tr><th>Mark</th><th>Size</th><th style="text-align:right;">Qty</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <div class="pack-label-footer">Total: ${totalPcs} pcs · ${fmtNum(packWeight(pack),0)} kg</div>
+        <div class="pack-label-line">Job ${escapeHtml(activeJob)}</div>
+        <div class="pack-label-line">Zone ${escapeHtml(activeZone)}</div>
+        <div class="pack-label-line">Pack ${pack.number}</div>
+        ${itemLines}
+        <div class="pack-label-line pack-label-total">Total: ${totalPcs} pcs · ${fmtNum(packWeight(pack),0)} kg</div>
       </div>`;
   }
 
