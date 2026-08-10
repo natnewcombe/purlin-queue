@@ -517,11 +517,11 @@
       <button class="icon-btn" onclick="closeModal('packModal')">✕</button>
     </div>
     <div class="modal-body">
-      <p class="help-text">Only pieces already marked done (and not yet in another pack) can be added. Use the highlight colors to narrow the list.</p>
+      <p class="help-text">Adding a piece here to a pack also marks it done. Use the highlight colors to narrow the list.</p>
       <div class="chip-row" id="packColorFilterChips" style="padding:0 0 10px;"></div>
       <button class="btn-ghost btn-sm" style="margin-bottom:12px;" onclick="addAllFilteredToPack()">Add all shown</button>
       <div id="packAvailableList" style="margin-bottom:16px;"></div>
-      <div id="packEmptyAvailable" class="help-text" style="display:none;">Nothing available to pack yet — mark some pieces done first.</div>
+      <div id="packEmptyAvailable" class="help-text" style="display:none;">Nothing left to pack — everything is already packed.</div>
       <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.3px;color:var(--tx3);margin:16px 0 8px;">In this pack</h4>
       <div id="packStagingList"><p class="help-text">Nothing added yet.</p></div>
     </div>
@@ -1334,7 +1334,7 @@
   let packStaging = []; // [{itemId, mark, size, gauge, length, qty}] while building a new pack
   let packColorFilter = 'ALL'; // 'ALL' | 'UNCOLORED' | a PAINT_COLORS key
 
-  function availableQty(it){ return Math.max(0, it.doneQty - it.packedQty); }
+  function availableQty(it){ return Math.max(0, it.qty - it.packedQty); }
 
   function availableItemsForPack(){
     return (activeQueue || []).filter(it => availableQty(it) > 0);
@@ -1403,7 +1403,7 @@
       emptyEl.style.display = '';
       emptyEl.textContent = availableItemsForPack().length
         ? 'Nothing available for this color — pick a different filter above.'
-        : 'Nothing available to pack yet — mark some pieces done first.';
+        : 'Nothing left to pack — everything is already packed.';
       return;
     }
     emptyEl.style.display = 'none';
@@ -1488,7 +1488,10 @@
     };
     packStaging.forEach(s => {
       const it = (activeQueue||[]).find(i => i.id === s.itemId);
-      if (it) it.packedQty += s.qty;
+      if (it){
+        it.packedQty += s.qty;
+        if (it.doneQty < it.packedQty) it.doneQty = it.packedQty;
+      }
     });
     activePacks.push(pack);
     setDirty(true);
