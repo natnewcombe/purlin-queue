@@ -281,14 +281,8 @@
   .field label { font-size: 11px; color: var(--tx3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
   .field input { font-family: inherit; font-size: 13px; padding: 8px 10px; border: 0.5px solid var(--bdr2); border-radius: var(--r); background: var(--bg2); color: var(--tx); }
 
-  /* ---------- Print-labels row control ---------- */
-  .print-qty-cell { display: flex; align-items: center; gap: 6px; }
-  .print-qty-input {
-    width: 48px; padding: 5px 7px; border: 0.5px solid var(--bdr2); border-radius: var(--r);
-    background: var(--bg2); color: var(--tx); font-family: inherit; font-size: 13px;
-    font-variant-numeric: tabular-nums;
-  }
-  .print-qty-input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+  /* ---------- Print-selected toolbar ---------- */
+  .print-toolbar { display: flex; align-items: center; gap: 10px; padding: 0 16px 12px; }
 
   /* ---------- Packs list ---------- */
   .pack-item {
@@ -321,21 +315,18 @@
     @page { size: 150mm 100mm; margin: 0; }
   }
   .label-page {
-    width: 150mm; height: 100mm; page-break-after: always;
-    display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr);
-  }
-  .label-page:last-child { page-break-after: auto; }
-  .label-cell {
-    box-sizing: border-box; padding: 3mm 2.5mm; overflow: hidden;
-    display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
-    border-right: 0.5pt dashed #999; border-bottom: 0.5pt dashed #999;
+    width: 150mm; height: 100mm; box-sizing: border-box; page-break-after: always;
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #000;
   }
-  .label-cell:nth-child(4n) { border-right: none; }
-  .label-cell:nth-child(n+5) { border-bottom: none; }
-  .label-cell .lc-line { font-size: 15pt; font-weight: 800; line-height: 1.35; }
+  .label-page:last-child { page-break-after: auto; }
+  .label-page.single-label {
+    display: flex; align-items: center; justify-content: center; padding: 6mm;
+  }
+  .label-page.single-label .sl-mark {
+    font-size: 40pt; font-weight: 900; line-height: 1.15; text-align: center; word-break: break-word;
+  }
 
-  .label-page.pack-page { grid-template-columns: 1fr; grid-template-rows: auto; padding: 6mm; box-sizing: border-box; }
+  .label-page.pack-page { display: block; grid-template-columns: 1fr; grid-template-rows: auto; padding: 6mm; }
   .pack-label-job { font-size: 9pt; color: #333; }
   .pack-label-title { font-size: 20pt; font-weight: 800; margin: 2mm 0 4mm; }
   .pack-label-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
@@ -464,10 +455,17 @@
               <div class="chip-row" id="typeChips"></div>
               <div class="chip-row" id="profileChips"></div>
               <div class="paint-bar" id="paintBar"></div>
+              <div class="print-toolbar" id="printToolbar">
+                <span id="printSelectedCount" class="help-text" style="margin:0;">0 selected</span>
+                <span class="spacer"></span>
+                <button class="btn-ghost btn-sm" onclick="toggleSelectAllForPrint()">Select All</button>
+                <button class="btn-primary btn-sm" id="btnPrintSelected" onclick="printSelectedLabels()" disabled>Print Selected Labels</button>
+              </div>
               <div style="overflow-x:auto;">
               <table>
                 <thead>
                   <tr>
+                    <th style="width:30px;"></th>
                     <th style="width:34px;">#</th>
                     <th>Mark</th>
                     <th>Group</th>
@@ -479,7 +477,6 @@
                     <th class="th-done" style="width:160px;">
                       <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllDone(this.checked)" title="Mark all visible items fully done"> Done
                     </th>
-                    <th style="width:150px;">Print labels</th>
                   </tr>
                 </thead>
                 <tbody id="queueBody"></tbody>
@@ -494,21 +491,6 @@
         </div>
 
         <div class="job-work-side">
-          <div class="card" id="labelSheetCard">
-            <div class="card-head" onclick="toggleCard('labelSheetCard')">
-              <h2>Label Sheet — <span id="labelSheetCount">0</span>/8</h2>
-              <span class="chev">▾</span>
-            </div>
-            <div class="card-body">
-              <p class="help-text">Add pieces from the Run Queue to build a sheet of up to 8 labels, mixing marks freely, then print them all at once.</p>
-              <div id="labelSheetList"></div>
-              <div style="display:flex;gap:8px;margin-top:12px;">
-                <button class="btn-ghost btn-sm" onclick="clearLabelSheet()">Clear</button>
-                <button class="btn-primary btn-sm" id="btnPrintLabelSheet" onclick="printLabelSheetBatch()" disabled>Print Sheet</button>
-              </div>
-            </div>
-          </div>
-
           <div class="card" id="packsCard">
             <div class="card-head" onclick="toggleCard('packsCard')">
               <h2>Packs</h2>
@@ -949,7 +931,7 @@
         activeCompletedAt = content.completedAt || null;
         activePacks = content.packs || [];
         activePackCounter = content.packCounter || 0;
-        labelSheetStaging = [];
+        selectedForPrint = new Set();
         activePaintColor = null;
         document.body.classList.remove('paint-mode');
         groupFilter = 'ALL'; typeFilter = 'ALL'; profileFilter = null;
@@ -961,7 +943,6 @@
         renderProfileChips();
         renderAllActive();
         renderPacksList();
-        renderLabelSheet();
         renderPaintBar();
         renderJobList();
         notify('Job loaded.');
@@ -984,7 +965,7 @@
         if (id === activeFileId){
           activeQueue = null; activeFileId = null; activeFilename = null; activeCompletedAt = null;
           activePacks = []; activePackCounter = 0;
-          labelSheetStaging = [];
+          selectedForPrint = new Set();
           activePaintColor = null;
           document.body.classList.remove('paint-mode');
           setDirty(false);
@@ -1158,27 +1139,12 @@
     body.innerHTML = rows.map((it, idx) => {
       const done = isLineDone(it);
       const partial = !done && it.doneQty > 0;
-      const remaining = Math.max(0, it.qty - it.doneQty);
-      const staged = stagedQtyForItem(it.id);
-      const capLeft = 8 - labelSheetTotal();
-      const maxAddable = Math.min(remaining - staged, capLeft);
-      let printCell;
-      if (remaining <= 0){
-        printCell = `<span class="help-text" style="margin:0;">All printed</span>`;
-      } else if (maxAddable <= 0){
-        printCell = capLeft <= 0
-          ? `<span class="help-text" style="margin:0;">Sheet full (8/8)</span>`
-          : `<span class="help-text" style="margin:0;">All staged</span>`;
-      } else {
-        printCell = `<div class="print-qty-cell">
-             <input type="number" class="print-qty-input" min="0" max="${maxAddable}" value="0" id="printQty-${it.id}" onclick="event.stopPropagation();">
-             <button class="btn-ghost btn-sm" onclick="event.stopPropagation();addToLabelSheet('${it.id}')">+ Add</button>
-           </div>`;
-      }
       const colorEntry = it.highlightColor ? PAINT_COLORS.find(c => c.key === it.highlightColor) : null;
-      const rowStyle = colorEntry ? ` style="background:${colorEntry.bg};border-left:4px solid ${colorEntry.accent};"` : '';
+      const rowStyle = colorEntry ? ` style="background:${colorEntry.bg};border-left:4px solid ${colorEntry.accent};color:#1a1c20;"` : '';
+      const checked = selectedForPrint.has(it.id);
       return `
       <tr data-id="${it.id}" class="${done ? 'done':''}${partial ? ' partial':''}"${rowStyle} onclick="handleRowClick('${it.id}')">
+        <td onclick="event.stopPropagation();"><input type="checkbox" ${checked?'checked':''} onclick="toggleRowSelected('${it.id}')"></td>
         <td class="order-num">${idx+1}</td>
         <td class="mark">${escapeHtml(it.mark)}</td>
         <td><span class="tag ${it.group==='SITE'?'tag-site':'tag-cassette'}">${it.group==='SITE'?'Site':'Cassette'}</span></td>
@@ -1187,18 +1153,18 @@
         <td class="mono">${it.gauge ? it.gauge+' BMT' : '—'}</td>
         <td class="mono">${it.qty}</td>
         <td class="mono">${fmtNum(it.length,0)} mm</td>
-        <td>
+        <td onclick="event.stopPropagation();">
           <div class="done-qty-cell">
             <input type="number" class="done-qty-input" min="0" max="${it.qty}" value="${it.doneQty}"
-                   onchange="setDoneQty('${it.id}', this.value)" onclick="event.stopPropagation();">
+                   onchange="setDoneQty('${it.id}', this.value)">
             <span class="mono done-qty-of">/ ${it.qty}</span>
-            <button class="icon-btn" title="Mark all ${it.qty} pcs done" onclick="event.stopPropagation();setDoneQty('${it.id}', ${it.qty})">✓</button>
+            <button class="icon-btn" title="Mark all ${it.qty} pcs done" onclick="setDoneQty('${it.id}', ${it.qty})">✓</button>
           </div>
         </td>
-        <td onclick="event.stopPropagation();">${printCell}</td>
       </tr>
     `;
     }).join('');
+    renderPrintToolbar();
   };
 
   function renderAllActive(){
@@ -1262,13 +1228,6 @@
     v = Math.max(0, Math.min(it.qty, v));
     it.doneQty = v;
     it.packedQty = Math.min(it.packedQty, it.doneQty);
-    const remaining = it.qty - it.doneQty;
-    const stagedEntry = labelSheetStaging.find(s => s.itemId === id);
-    if (stagedEntry && stagedEntry.qty > remaining){
-      if (remaining <= 0) labelSheetStaging = labelSheetStaging.filter(s => s.itemId !== id);
-      else stagedEntry.qty = remaining;
-      renderLabelSheet();
-    }
     setDirty(true);
     renderAllActive();
   };
@@ -1286,101 +1245,59 @@
     document.getElementById('labelPrintArea').innerHTML = '';
   });
 
-  function buildLabelCellsFromEntries(entries){
-    const cells = [];
+  function buildSingleLabelPages(entries){
+    // entries: [{mark, qty}] — one full-size 150x100mm page per physical label, Mark only
+    let pages = '';
     entries.forEach(en => {
       for (let i=0; i<en.qty; i++){
-        cells.push(`
-          <div class="label-cell">
-            <div class="lc-line">Job ${escapeHtml(activeJob)}</div>
-            <div class="lc-line">Zone ${escapeHtml(activeZone)}</div>
-            <div class="lc-line">${escapeHtml(en.mark)}</div>
-          </div>`);
+        pages += `<div class="label-page single-label"><div class="sl-mark">${escapeHtml(en.mark)}</div></div>`;
       }
     });
-    let pages = '';
-    for (let i=0; i<cells.length; i+=8){
-      pages += `<div class="label-page">${cells.slice(i, i+8).join('')}</div>`;
-    }
     return pages;
   }
 
-  /* ================= Label sheet staging (up to 8 mixed labels per sheet) ================= */
-  let labelSheetStaging = []; // [{itemId, mark, qty}]
+  /* ================= Label printing: row selection ================= */
+  let selectedForPrint = new Set();
 
-  function labelSheetTotal(){ return labelSheetStaging.reduce((s,e)=>s+e.qty, 0); }
-  function stagedQtyForItem(itemId){ const e = labelSheetStaging.find(s=>s.itemId===itemId); return e ? e.qty : 0; }
+  window.toggleRowSelected = function(itemId){
+    if (selectedForPrint.has(itemId)) selectedForPrint.delete(itemId);
+    else selectedForPrint.add(itemId);
+    renderPrintToolbar();
+  };
 
-  window.addToLabelSheet = function(itemId){
-    const it = (activeQueue||[]).find(i => i.id === itemId);
-    if (!it) return;
-    const remaining = Math.max(0, it.qty - it.doneQty);
-    const staged = stagedQtyForItem(itemId);
-    const capLeft = 8 - labelSheetTotal();
-    const maxAddable = Math.min(remaining - staged, capLeft);
-    if (maxAddable <= 0){
-      notify(capLeft <= 0 ? 'Label sheet is full (8/8) — print or clear it first.' : 'All remaining pieces of this line are already on the sheet.', true);
-      return;
+  window.toggleSelectAllForPrint = function(){
+    const rows = filteredQueue();
+    const allSelected = rows.length > 0 && rows.every(r => selectedForPrint.has(r.id));
+    if (allSelected){
+      rows.forEach(r => selectedForPrint.delete(r.id));
+    } else {
+      rows.forEach(r => selectedForPrint.add(r.id));
     }
-    const input = document.getElementById(`printQty-${itemId}`);
-    let qty = parseInt(input ? input.value : 0, 10);
-    if (isNaN(qty) || qty < 1){
-      notify('Enter how many to add first.', true);
-      return;
-    }
-    qty = Math.min(maxAddable, qty);
-
-    const existing = labelSheetStaging.find(s => s.itemId === itemId);
-    if (existing) existing.qty += qty;
-    else labelSheetStaging.push({ itemId, mark: it.mark, qty });
-
-    renderLabelSheet();
     renderQueueTable();
   };
 
-  window.removeFromLabelSheet = function(itemId){
-    labelSheetStaging = labelSheetStaging.filter(s => s.itemId !== itemId);
-    renderLabelSheet();
-    renderQueueTable();
-  };
-
-  window.clearLabelSheet = function(){
-    labelSheetStaging = [];
-    renderLabelSheet();
-    renderQueueTable();
-  };
-
-  function renderLabelSheet(){
-    const total = labelSheetTotal();
-    document.getElementById('labelSheetCount').textContent = total;
-    const btn = document.getElementById('btnPrintLabelSheet');
-    btn.disabled = total === 0;
-    const el = document.getElementById('labelSheetList');
-    if (!labelSheetStaging.length){
-      el.innerHTML = '<p class="help-text">Nothing added yet.</p>';
-      return;
-    }
-    el.innerHTML = labelSheetStaging.map(s => `
-      <div class="pack-staging-row">
-        <div class="ps-main">${escapeHtml(s.mark)} <span style="color:var(--tx3);">× ${s.qty}</span></div>
-        <button class="icon-btn" title="Remove" onclick="removeFromLabelSheet('${s.itemId}')">✕</button>
-      </div>`).join('');
+  function renderPrintToolbar(){
+    const countEl = document.getElementById('printSelectedCount');
+    const btn = document.getElementById('btnPrintSelected');
+    if (!countEl || !btn) return;
+    const n = selectedForPrint.size;
+    countEl.textContent = `${n} selected`;
+    btn.disabled = n === 0;
   }
 
-  window.printLabelSheetBatch = function(){
-    if (!labelSheetStaging.length) return;
-    const pages = buildLabelCellsFromEntries(labelSheetStaging);
-    labelSheetStaging.forEach(s => {
-      const it = (activeQueue||[]).find(i => i.id === s.itemId);
-      if (it) it.doneQty = Math.min(it.qty, it.doneQty + s.qty);
-    });
-    const printedCount = labelSheetTotal();
+  window.printSelectedLabels = function(){
+    const q = activeQueue || [];
+    const items = q.filter(it => selectedForPrint.has(it.id));
+    if (!items.length) return;
+    const entries = items.map(it => ({ mark: it.mark, qty: it.qty }));
+    const pages = buildSingleLabelPages(entries);
+    items.forEach(it => { it.doneQty = it.qty; });
+    const totalLabels = entries.reduce((s,e)=>s+e.qty, 0);
     setDirty(true);
-    labelSheetStaging = [];
+    selectedForPrint = new Set();
     renderAllActive();
-    renderLabelSheet();
     printLabelSheet(pages);
-    notify(`Printed ${printedCount} label${printedCount===1?'':'s'} and marked done.`);
+    notify(`Printed ${totalLabels} label${totalLabels===1?'':'s'} for ${items.length} line${items.length===1?'':'s'} and marked done.`);
   };
 
   window.toggleAllDone = function(checked){
