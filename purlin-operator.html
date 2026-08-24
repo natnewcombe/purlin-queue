@@ -312,26 +312,26 @@
   @media print {
     body.printing-labels > *:not(#labelPrintArea) { display: none !important; }
     body.printing-labels #labelPrintArea { display: block !important; }
-    @page { size: 150mm 100mm; margin: 0; }
+    @page { size: 102mm 48mm; margin: 0; }
   }
   .label-page {
-    width: 150mm; height: 100mm; box-sizing: border-box; page-break-after: always;
+    width: 102mm; height: 48mm; box-sizing: border-box; page-break-after: always;
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #000;
   }
   .label-page:last-child { page-break-after: auto; }
   .label-page.single-label {
-    display: flex; align-items: center; justify-content: center; padding: 6mm;
+    display: flex; align-items: center; justify-content: center; padding: 3mm;
   }
   .label-page.single-label .sl-mark {
-    font-size: 40pt; font-weight: 900; line-height: 1.15; text-align: center; word-break: break-word;
+    font-weight: 900; line-height: 1.1; text-align: center; word-break: break-word;
   }
 
   .label-page.pack-page {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    text-align: center; padding: 6mm; gap: 2mm; box-sizing: border-box;
+    text-align: center; padding: 3mm; box-sizing: border-box; overflow: hidden;
   }
-  .pack-label-line { font-size: 16pt; font-weight: 900; line-height: 1.25; }
-  .pack-label-total { margin-top: 3mm; font-size: 17pt; }
+  .pack-label-line { font-weight: 900; line-height: 1.2; }
+  .pack-label-total { margin-top: 0.6mm; }
 </style>
 </head>
 <body>
@@ -1247,12 +1247,21 @@
     document.getElementById('labelPrintArea').innerHTML = '';
   });
 
+  function markFontSizePt(mark){
+    const len = String(mark).length;
+    if (len <= 6) return 34;
+    if (len <= 10) return 26;
+    if (len <= 14) return 20;
+    return 15;
+  }
+
   function buildSingleLabelPages(entries){
-    // entries: [{mark, qty}] — one full-size 150x100mm page per physical label, Mark only
+    // entries: [{mark, qty}] — one full-size 102x48mm page per physical label, Mark only
     let pages = '';
     entries.forEach(en => {
+      const fs = markFontSizePt(en.mark);
       for (let i=0; i<en.qty; i++){
-        pages += `<div class="label-page single-label"><div class="sl-mark">${escapeHtml(en.mark)}</div></div>`;
+        pages += `<div class="label-page single-label"><div class="sl-mark" style="font-size:${fs}pt;">${escapeHtml(en.mark)}</div></div>`;
       }
     });
     return pages;
@@ -1557,15 +1566,18 @@
   }
 
   function buildPackLabelPage(pack){
-    const itemLines = pack.contents.map(c => `<div class="pack-label-line">${escapeHtml(c.mark)} — ${c.qty}</div>`).join('');
     const totalPcs = pack.contents.reduce((s,c)=>s+c.qty,0);
+    // Header + one line per content item + total line, all sharing the same size.
+    // Available content height is roughly 48mm minus 6mm padding (~119pt); shrink as line count grows.
+    const lineCount = 2 + pack.contents.length;
+    const fs = Math.max(6.5, Math.min(15, Math.floor(119 / (lineCount * 1.2))));
+    const style = ` style="font-size:${fs}pt;"`;
+    const itemLines = pack.contents.map(c => `<div class="pack-label-line"${style}>${escapeHtml(c.mark)} — ${c.qty}</div>`).join('');
     return `
       <div class="label-page pack-page">
-        <div class="pack-label-line">Job ${escapeHtml(activeJob)}</div>
-        <div class="pack-label-line">Zone ${escapeHtml(activeZone)}</div>
-        <div class="pack-label-line">Pack ${pack.number}</div>
+        <div class="pack-label-line"${style}>Job ${escapeHtml(activeJob)} · Zone ${escapeHtml(activeZone)} · Pack ${pack.number}</div>
         ${itemLines}
-        <div class="pack-label-line pack-label-total">Total: ${totalPcs} pcs · ${fmtNum(packWeight(pack),0)} kg</div>
+        <div class="pack-label-line pack-label-total"${style}>Total: ${totalPcs} pcs · ${fmtNum(packWeight(pack),0)} kg</div>
       </div>`;
   }
 
