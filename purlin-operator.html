@@ -329,16 +329,16 @@
      - 102x48mm landscape is the correct page size/orientation
      - the printable area doesn't quite reach the bottom-left of the declared page, so content
        is inset from the bottom/left and anchored to the top-right instead
-     - after a real print test, content needed to shift 5mm right and 5mm down from that position;
-       done by adding top/left clearance while keeping the bottom/right edges exactly where they were
-       (those were already confirmed not to clip) */
+     - after real print tests, content needed to shift right and down from that position, twice now
+       (5mm+5mm right, 5mm down total); done by adding top/left clearance while keeping the
+       bottom/right edges exactly where they were (those were already confirmed not to clip) */
   .label-page {
     width: 102mm; height: 48mm; box-sizing: border-box; page-break-after: always;
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #000; position: relative;
   }
   .label-page:last-child { page-break-after: auto; }
   .label-content-box {
-    position: absolute; top: 5mm; right: 0; width: 91mm; height: 37mm; box-sizing: border-box;
+    position: absolute; top: 5mm; right: 0; width: 86mm; height: 37mm; box-sizing: border-box;
     overflow: hidden; padding: 1mm; display: flex; flex-direction: column;
   }
   .single-label-inner { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
@@ -1323,10 +1323,10 @@
     // Sizes confirmed via measured print calibration - each verified to fit the content box
     // without wrapping/overflowing at that mark length.
     const len = String(mark).length;
-    if (len <= 6) return 48;
-    if (len <= 10) return 37;
-    if (len <= 14) return 28;
-    return 20;
+    if (len <= 6) return 52;
+    if (len <= 10) return 40;
+    if (len <= 14) return 30;
+    return 22;
   }
 
   function buildSingleLabelPages(entries){
