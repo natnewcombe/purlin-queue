@@ -1320,12 +1320,13 @@
   });
 
   function markFontSizePt(mark){
-    // Baseline confirmed via physical print calibration: 26pt for short marks (e.g. "SR1000").
+    // Sizes confirmed via measured print calibration - each verified to fit the content box
+    // without wrapping/overflowing at that mark length.
     const len = String(mark).length;
-    if (len <= 6) return 26;
-    if (len <= 10) return 20;
-    if (len <= 14) return 15;
-    return 11;
+    if (len <= 6) return 48;
+    if (len <= 10) return 37;
+    if (len <= 14) return 28;
+    return 20;
   }
 
   function buildSingleLabelPages(entries){
