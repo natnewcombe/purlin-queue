@@ -302,6 +302,17 @@
   .pack-avail-row:last-child, .pack-staging-row:last-child { border-bottom: none; }
   .pack-avail-row .pa-main, .pack-staging-row .ps-main { flex: 1; font-size: 13px; }
   .pack-avail-row .pa-sub { font-size: 11px; color: var(--tx3); }
+
+  /* ---------- Job Times ---------- */
+  .time-field-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 0.5px solid var(--bdr); }
+  .time-field-row:last-of-type { border-bottom: none; }
+  .time-field-row label { font-size: 13px; font-weight: 600; }
+  .time-inputs { display: flex; align-items: center; gap: 4px; }
+  .time-inputs input {
+    width: 48px; padding: 6px 7px; border: 0.5px solid var(--bdr2); border-radius: var(--r);
+    background: var(--bg2); color: var(--tx); font-family: inherit; font-size: 13px; text-align: right;
+  }
+  .time-unit { font-size: 12px; color: var(--tx3); margin-right: 4px; }
   .pack-qty-input {
     width: 56px; padding: 6px 8px; border: 0.5px solid var(--bdr2); border-radius: var(--r);
     background: var(--bg2); color: var(--tx); font-family: inherit; font-size: 13px;
@@ -501,6 +512,30 @@
         </div>
 
         <div class="job-work-side">
+          <div class="card" id="jobTimesCard">
+            <div class="card-head" onclick="toggleCard('jobTimesCard')">
+              <h2>Job Times</h2>
+              <span class="chev">▾</span>
+            </div>
+            <div class="card-body">
+              <div class="time-field-row">
+                <label>Running time</label>
+                <div class="time-inputs">
+                  <input type="number" min="0" id="runningHours" onchange="setJobTimeField('running','hours',this.value)"> <span class="time-unit">h</span>
+                  <input type="number" min="0" max="59" id="runningMinutes" onchange="setJobTimeField('running','minutes',this.value)"> <span class="time-unit">m</span>
+                </div>
+              </div>
+              <div class="time-field-row">
+                <label>Changing time</label>
+                <div class="time-inputs">
+                  <input type="number" min="0" id="changingHours" onchange="setJobTimeField('changing','hours',this.value)"> <span class="time-unit">h</span>
+                  <input type="number" min="0" max="59" id="changingMinutes" onchange="setJobTimeField('changing','minutes',this.value)"> <span class="time-unit">m</span>
+                </div>
+              </div>
+              <p class="help-text" style="margin-bottom:0;">Changing time is machine setup/changeover before this job starts (e.g. swapping dies).</p>
+            </div>
+          </div>
+
           <div class="card" id="packsCard">
             <div class="card-head" onclick="toggleCard('packsCard')">
               <h2>Packs</h2>
@@ -613,6 +648,8 @@
   let activeCompletedAt = null;  // set once the loaded job reaches 100% done, cleared if reopened
   let activePacks = [];           // packs already built for this job
   let activePackCounter = 0;      // sequential pack numbering, never reused
+  let activeRunningMin = 0;       // total running time in minutes
+  let activeChangingMin = 0;      // total changeover/setup time in minutes
   let isDirty = false;
 
   let groupFilter = 'ALL';
@@ -943,6 +980,8 @@
         activeCompletedAt = content.completedAt || null;
         activePacks = content.packs || [];
         activePackCounter = content.packCounter || 0;
+        activeRunningMin = content.runningTimeMinutes || 0;
+        activeChangingMin = content.changingTimeMinutes || 0;
         selectedForPrint = new Set();
         activePaintColor = null;
         document.body.classList.remove('paint-mode');
@@ -956,6 +995,7 @@
         renderAllActive();
         renderPacksList();
         renderPaintBar();
+        renderJobTimes();
         renderJobList();
         notify('Job loaded.');
       } catch(err){
@@ -977,6 +1017,7 @@
         if (id === activeFileId){
           activeQueue = null; activeFileId = null; activeFilename = null; activeCompletedAt = null;
           activePacks = []; activePackCounter = 0;
+          activeRunningMin = 0; activeChangingMin = 0;
           selectedForPrint = new Set();
           activePaintColor = null;
           document.body.classList.remove('paint-mode');
@@ -1610,6 +1651,33 @@
       </div>`;
   }
 
+  /* ================= Job Times ================= */
+  window.setJobTimeField = function(type, unit, val){
+    let v = parseInt(val, 10);
+    if (isNaN(v) || v < 0) v = 0;
+    if (unit === 'minutes') v = Math.min(59, v);
+    const currentTotal = type === 'running' ? activeRunningMin : activeChangingMin;
+    const hours = Math.floor(currentTotal / 60);
+    const minutes = currentTotal % 60;
+    const newTotal = unit === 'hours' ? (v * 60 + minutes) : (hours * 60 + v);
+    if (type === 'running') activeRunningMin = newTotal;
+    else activeChangingMin = newTotal;
+    setDirty(true);
+    renderJobTimes();
+  };
+
+  function renderJobTimes(){
+    const rh = document.getElementById('runningHours');
+    const rm = document.getElementById('runningMinutes');
+    const ch = document.getElementById('changingHours');
+    const cm = document.getElementById('changingMinutes');
+    if (!rh) return;
+    rh.value = Math.floor(activeRunningMin / 60);
+    rm.value = activeRunningMin % 60;
+    ch.value = Math.floor(activeChangingMin / 60);
+    cm.value = activeChangingMin % 60;
+  }
+
   /* ================= Save progress ================= */
   window.saveProgress = async function(){
     if (!APPS_SCRIPT_URL){ notify('Set the Apps Script URL first (⚙ icon).', true); openModal('settingsModal'); return; }
@@ -1632,7 +1700,9 @@
       completedAt: newCompletedAt,
       items: activeQueue,
       packs: activePacks,
-      packCounter: activePackCounter
+      packCounter: activePackCounter,
+      runningTimeMinutes: activeRunningMin,
+      changingTimeMinutes: activeChangingMin
     };
     notify('Saving progress…');
     try {
